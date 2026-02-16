@@ -16,6 +16,7 @@
 
 ### Lidar:
 - [Slamtec RPLIDAR A2 Introduction and Data Sheet](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf&ved=2ahUKEwjs5YznoKySAxUAKlkFHdNlOBIQFnoECB8QAQ&usg=AOvVaw1uv98FNMpZ3x3v6YhKvcae)
+- [Slamtec RPLIDAR SDK](https://github.com/Slamtec/rplidar_sdk)
 - [Robotica RPLidar](https://github.com/Roboticia/RPLidar/tree/master) python library
 - [FFmpeg](https://www.ffmpeg.org/) can be installed with Brew on OSX. It is needed for animate.py to produce the video from the LIDAR readings
 - [rplidar](https://github.com/Hyun-je/pyrplidar) python library

@@ -10,6 +10,7 @@ def run():
     lidar = RPLidar(RPLIDAR_PORT, BAUDRATE)
     old_t = None
     data = []
+    cycles = 0
     try:
         print('Press Ctrl+C to stop')
         for _ in lidar.iter_scans():
@@ -20,13 +21,15 @@ def run():
             delta = now - old_t
             print('%.2f Hz, %.2f RPM' % (1/delta, 60/delta))
             data.append(delta)
+            cycles += 1
             old_t = now
     except KeyboardInterrupt:
         print('Stoping. Computing mean...')
         lidar.stop()
         lidar.disconnect()
-        delta = sum(data)/len(data)
-        print('Mean: %.2f Hz, %.2f RPM' % (1/delta, 60/delta))
+        sum_data = sum(data)
+        delta = sum_data/len(data)
+        print(f"Mean: {1/delta:.2f} Hz (cycles/sec), {60/delta:.2f} RPM")
 
 if __name__ == '__main__':
     run()

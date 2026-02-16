@@ -35,7 +35,7 @@ def lidar_readings_to_cartesian(readings):
 def startup_lidar():
     lidar = RPLidar(RPLIDAR_PORT, BAUDRATE)
     # DEFAULT_MOTOR_PWM = 660 (default)
-    lidar.motor_speed = 330
+    #lidar.motor_speed = 330
 
     info = lidar.get_info()
     print(f"Lidar Info: {info}")
