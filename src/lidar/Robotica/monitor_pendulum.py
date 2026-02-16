@@ -50,9 +50,8 @@ import requests
 # https://thingspeak.mathworks.com/channels/3258476/private_show
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
-def things_speak_url(pendulum_period, projected_daily_deviation, pendulum_swing, pendulum_swing_computed):
+def things_speak_url(WRITE_API_KEY, pendulum_period, projected_daily_deviation, pendulum_swing, pendulum_swing_computed):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
-    WRITE_API_KEY = "87YUBRFXK5VZOLJG"
     # GET https://api.thingspeak.com/update?api_key=87YUBRFXK5VZOLJG&field1=0
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
@@ -66,9 +65,9 @@ def things_speak_url(pendulum_period, projected_daily_deviation, pendulum_swing,
           f"; pendulum_found_failures: {pendulum_found_failures:}; lidar_restarts: {lidar_restarts:.2f}")
     return url
 
-def thingsspeak_post(period, error, swing, swing_computed):
+def thingsspeak_post(WRITE_API_KEY, period, error, swing, swing_computed):
     try:
-        response = requests.post(things_speak_url(period, error, swing, swing_computed))
+        response = requests.post(things_speak_url(WRITE_API_KEY, period, error, swing, swing_computed))
         if response.status_code == 200:
             print(f"Data sent OK: {response.text}")
         else:
@@ -77,20 +76,20 @@ def thingsspeak_post(period, error, swing, swing_computed):
     except requests.exceptions.RequestException as e:
         print(f"Connection failed: {e}")
 
-def process_nanos_first_points(nano_first_angles):
+def process_nanos_first_points(nano_first_angles, WRITE_API_KEY):
     period, t_uniform, theta_uniform, fitted_params = pendulum_equation(nano_first_angles)
     error, _ = analyze_clock_rate(period)
     swing = abs(min(theta_uniform) - max(theta_uniform))
     theta_uniform_computed = sine_function(t_uniform, *fitted_params)
     swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
-    thingsspeak_post(period, error, swing, swing_computed)
+    thingsspeak_post(WRITE_API_KEY, period, error, swing, swing_computed)
     return 1, nano_first_angles
 
 import multiprocessing
 import copy
 from time import sleep
 
-def run_scanner():
+def run_scanner(WRITE_API_KEY):
     global lidar_restarts, consecutive_scans_last
     lidar = startup_lidar()
     consecutive_scans_last = None
@@ -132,7 +131,8 @@ def run_scanner():
                                     nanos_first_points.append(nano_first_point)
                                     if len(nanos_first_points) >= 130:
                                         result_obj = pool.apply_async(process_nanos_first_points,
-                                                                      args=(copy.deepcopy(nanos_first_points),))
+                                                                      args=(copy.deepcopy(nanos_first_points),
+                                                                            WRITE_API_KEY,))
                                         results.append(result_obj)
                                         nanos_first_points = []
                                 # print(f"Pendulum {nanos_str(value_nanos)} results[{len(value_scan)}]: {value_scan}", flush=True)
@@ -157,11 +157,17 @@ def run_scanner():
         lidar.disconnect()
         pool.close()
         pool.join()
+import configparser
+import os
 
 # When a new process starts using the 'spawn' method, it re-imports the main script.
 # Any code at the global scope that is not protected by an if __name__ == '__main__': block will be executed during
 # this re-import process, which can lead to infinite loops of spawning new processes or other errors.
 if __name__ == '__main__':
+    config = configparser.ConfigParser()
+    ini_path = os.path.join(os.getcwd(), 'config.ini')
+    config.read(ini_path)
+    WRITE_API_KEY = config.get('ThingSpeak', 'WRITE_API_KEY')
     while True:
-        run_scanner()
+        run_scanner(WRITE_API_KEY)
         sleep(5)
