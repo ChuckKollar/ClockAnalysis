@@ -16,10 +16,6 @@ from lidar.find_proximal_points import find_consecutive_proximal_points, find_di
 # $ pip install requests
 
 pendulum_found_failures: int = 0
-lidar_restarts: int = 0
-def print_global_data():
-    print(f" pendulum_found_failures: {pendulum_found_failures}"
-          f" lidar_restarts: {lidar_restarts}")
 
 from datetime import datetime
 
@@ -50,7 +46,8 @@ import requests
 # https://thingspeak.mathworks.com/channels/3258476/private_show
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
-def things_speak_url(write_api_key, pendulum_period, projected_daily_deviation, pendulum_swing, pendulum_swing_computed):
+def things_speak_url(write_api_key, pendulum_period, projected_daily_deviation, pendulum_swing,
+                     pendulum_swing_computed, lidar_restarts):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
     # GET https://api.thingspeak.com/update?api_key=87YUBRFXK5VZOLJG&field1=0
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
@@ -62,12 +59,12 @@ def things_speak_url(write_api_key, pendulum_period, projected_daily_deviation, 
            )
     print(f"pendulum_period: {pendulum_period:.2f}; projected_daily_deviation: {projected_daily_deviation:.2f}"
           f"; pendulum_swing: {pendulum_swing:.2f}; pendulum_swing_computed: {pendulum_swing_computed:.2f}"
-          f"; pendulum_found_failures: {pendulum_found_failures:}; lidar_restarts: {lidar_restarts:.2f}")
+          f"; pendulum_found_failures: {pendulum_found_failures}; lidar_restarts: {lidar_restarts}")
     return url
 
-def thingsspeak_post(write_api_key, period, error, swing, swing_computed):
+def thingsspeak_post(write_api_key, period, error, swing, swing_computed, lidar_restarts):
     try:
-        response = requests.post(things_speak_url(write_api_key, period, error, swing, swing_computed))
+        response = requests.post(things_speak_url(write_api_key, period, error, swing, swing_computed, lidar_restarts))
         if response.status_code == 200:
             print(f"Data sent OK: {response.text}")
         else:
@@ -76,21 +73,21 @@ def thingsspeak_post(write_api_key, period, error, swing, swing_computed):
     except requests.exceptions.RequestException as e:
         print(f"Connection failed: {e}")
 
-def process_nanos_first_points(nano_first_angles, write_api_key):
+def process_nanos_first_points(nano_first_angles, write_api_key, lidar_restarts):
     period, t_uniform, theta_uniform, fitted_params = pendulum_equation(nano_first_angles)
     error, _ = analyze_clock_rate(period)
     swing = abs(min(theta_uniform) - max(theta_uniform))
     theta_uniform_computed = sine_function(t_uniform, *fitted_params)
     swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
-    thingsspeak_post(write_api_key, period, error, swing, swing_computed)
+    thingsspeak_post(write_api_key, period, error, swing, swing_computed, lidar_restarts)
     return 1, nano_first_angles
 
 import multiprocessing
 import copy
 from time import sleep
 
-def run_scanner(write_api_key):
-    global lidar_restarts, consecutive_scans_last
+def run_scanner(write_api_key, lidar_restarts):
+    global consecutive_scans_last
     lidar = startup_lidar()
     consecutive_scans_last = None
     nanos_first_points = []
@@ -108,10 +105,8 @@ def run_scanner(write_api_key):
                     scan = next(iterator)  # (quality, angle, distance)
                     scan_with_time = (time.perf_counter(), scan)
                 except RPLidarException:
-                    lidar_restarts += 1
                     print("RPLidar Exception caught, attempting to restart and reset...")
-                    print_global_data()
-                    return
+                    return lidar_restarts + 1
                 # Submit a single task to the pool, non-blocking
                 result_obj = pool.apply_async(find_pendulum_thread, args=(scan_with_time,))
                 results.append(result_obj)
@@ -132,7 +127,8 @@ def run_scanner(write_api_key):
                                     if len(nanos_first_points) >= 130:
                                         result_obj = pool.apply_async(process_nanos_first_points,
                                                                       args=(copy.deepcopy(nanos_first_points),
-                                                                            write_api_key,))
+                                                                            write_api_key,
+                                                                            lidar_restarts,))
                                         results.append(result_obj)
                                         nanos_first_points = []
                                 # print(f"Pendulum {nanos_str(value_nanos)} results[{len(value_scan)}]: {value_scan}", flush=True)
@@ -168,6 +164,7 @@ if __name__ == '__main__':
     ini_path = os.path.join(os.getcwd(), 'config.ini')
     config.read(ini_path)
     write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY')
+    lidar_restarts = 0
     while True:
-        run_scanner(write_api_key)
+        lidar_restarts = run_scanner(write_api_key, lidar_restarts)
         sleep(5)
