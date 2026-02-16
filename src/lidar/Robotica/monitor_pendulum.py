@@ -50,12 +50,12 @@ import requests
 # https://thingspeak.mathworks.com/channels/3258476/private_show
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
-def things_speak_url(WRITE_API_KEY, pendulum_period, projected_daily_deviation, pendulum_swing, pendulum_swing_computed):
+def things_speak_url(write_api_key, pendulum_period, projected_daily_deviation, pendulum_swing, pendulum_swing_computed):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
     # GET https://api.thingspeak.com/update?api_key=87YUBRFXK5VZOLJG&field1=0
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
-    url = (f"https://api.thingspeak.com/update?api_key={WRITE_API_KEY}"
+    url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
            f"&field1={pendulum_period}&field2={projected_daily_deviation}&field3={pendulum_swing}"
            f"&field4={pendulum_swing_computed}&field5={pendulum_found_failures}"
            f"&field6={lidar_restarts}"
@@ -65,9 +65,9 @@ def things_speak_url(WRITE_API_KEY, pendulum_period, projected_daily_deviation, 
           f"; pendulum_found_failures: {pendulum_found_failures:}; lidar_restarts: {lidar_restarts:.2f}")
     return url
 
-def thingsspeak_post(WRITE_API_KEY, period, error, swing, swing_computed):
+def thingsspeak_post(write_api_key, period, error, swing, swing_computed):
     try:
-        response = requests.post(things_speak_url(WRITE_API_KEY, period, error, swing, swing_computed))
+        response = requests.post(things_speak_url(write_api_key, period, error, swing, swing_computed))
         if response.status_code == 200:
             print(f"Data sent OK: {response.text}")
         else:
@@ -76,20 +76,20 @@ def thingsspeak_post(WRITE_API_KEY, period, error, swing, swing_computed):
     except requests.exceptions.RequestException as e:
         print(f"Connection failed: {e}")
 
-def process_nanos_first_points(nano_first_angles, WRITE_API_KEY):
+def process_nanos_first_points(nano_first_angles, write_api_key):
     period, t_uniform, theta_uniform, fitted_params = pendulum_equation(nano_first_angles)
     error, _ = analyze_clock_rate(period)
     swing = abs(min(theta_uniform) - max(theta_uniform))
     theta_uniform_computed = sine_function(t_uniform, *fitted_params)
     swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
-    thingsspeak_post(WRITE_API_KEY, period, error, swing, swing_computed)
+    thingsspeak_post(write_api_key, period, error, swing, swing_computed)
     return 1, nano_first_angles
 
 import multiprocessing
 import copy
 from time import sleep
 
-def run_scanner(WRITE_API_KEY):
+def run_scanner(write_api_key):
     global lidar_restarts, consecutive_scans_last
     lidar = startup_lidar()
     consecutive_scans_last = None
@@ -132,7 +132,7 @@ def run_scanner(WRITE_API_KEY):
                                     if len(nanos_first_points) >= 130:
                                         result_obj = pool.apply_async(process_nanos_first_points,
                                                                       args=(copy.deepcopy(nanos_first_points),
-                                                                            WRITE_API_KEY,))
+                                                                            write_api_key,))
                                         results.append(result_obj)
                                         nanos_first_points = []
                                 # print(f"Pendulum {nanos_str(value_nanos)} results[{len(value_scan)}]: {value_scan}", flush=True)
@@ -167,7 +167,7 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     ini_path = os.path.join(os.getcwd(), 'config.ini')
     config.read(ini_path)
-    WRITE_API_KEY = config.get('ThingSpeak', 'WRITE_API_KEY')
+    write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY')
     while True:
-        run_scanner(WRITE_API_KEY)
+        run_scanner(write_api_key)
         sleep(5)
