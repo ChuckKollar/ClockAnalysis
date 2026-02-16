@@ -155,7 +155,7 @@ class Pendulum:
     # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
     def things_speak_url(self):
         """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
-        write_api_key = "87YUBRFXK5VZOLJG"
+        write_api_key = ""
         # GET https://api.thingspeak.com/update?api_key=87YUBRFXK5VZOLJG&field1=0
         swing_angle = max_angle(self.max_l_pendulum, self.max_r_pendulum)
         sewing_distance = calculate_distance(self.max_l_pendulum, self.max_r_pendulum)
