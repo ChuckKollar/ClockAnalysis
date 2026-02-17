@@ -3,3 +3,4 @@ src/lidar/Robotica/config.ini
 # Python temp files
 __pycache__/
 *.py[cod]
+.DS_Store
