@@ -4,6 +4,9 @@ from rplidar import RPLidar, RPLidarException
 import time
 from lidar.const import startup_lidar
 from lidar.find_proximal_points import find_consecutive_proximal_points, find_dissimilar_scans
+import logging
+
+logging.basicConfig(level=logging.ERROR)
 
 # Install this to get the right LIDAR package...
 # $ pip install rplidar-roboticia
@@ -27,6 +30,10 @@ def nanos_str(nanos):
 
 consecutive_scans_last = None
 def find_pendulum_thread(scan_w_time):
+    """
+    This function is used to find the Pendulum (only moving thing) in the LIDAR scan.
+    NOTE: any exceptions that heppen here will not be propagated to the caller.
+    """
     global consecutive_scans_last, pendulum_found_failures
     nanos = scan_w_time[0]
     consecutive_scans = find_consecutive_proximal_points(scan_w_time[1])
@@ -74,97 +81,105 @@ def thingsspeak_post(write_api_key, period, error, swing, swing_computed, lidar_
         print(f"Connection failed: {e}")
 
 def process_nanos_first_points(nano_first_angles, write_api_key, lidar_restarts):
+    """
+    This is used to find information about the pendulum using the time associated with the
+    scan and the first (left most) point of the pendulum.
+    """
     period, t_uniform, theta_uniform, fitted_params = pendulum_equation(nano_first_angles)
-    error, _ = analyze_clock_rate(period)
+    time_error_sec_per_day, _ = analyze_clock_rate(period)
+    # the swing is how far left and right the pendulum moves based on the LIDAR data
     swing = abs(min(theta_uniform) - max(theta_uniform))
     theta_uniform_computed = sine_function(t_uniform, *fitted_params)
+    # the computed swing is how far left and right the pendulum would move according to the sine_function
     swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
-    thingsspeak_post(write_api_key, period, error, swing, swing_computed, lidar_restarts)
+    thingsspeak_post(write_api_key, period, time_error_sec_per_day, swing, swing_computed, lidar_restarts)
     return 1, nano_first_angles
 
 import multiprocessing
 import copy
-from time import sleep
+import traceback
 
-def run_scanner(write_api_key, lidar_restarts):
+def run_scanner(write_api_key):
     global consecutive_scans_last
-    lidar = startup_lidar()
-    consecutive_scans_last = None
-    nanos_first_points = []
-    try:
-        iteration_cnt = 0
-        iterator = lidar.iter_scans()
-        start_time = time.perf_counter()
-
-        with multiprocessing.Pool(processes=3) as pool:
-            results = []
-            completed_results = []
-            next(iterator) # Throw away the first one
-            while True:
-                try:
-                    scan = next(iterator)  # (quality, angle, distance)
+    apply_async_with_n = 380
+    iteration_n = 60
+    lidar_restarts = 0
+    iteration_cnt = 0
+    results = []
+    completed_results = []
+    with multiprocessing.Pool(processes=3) as pool:
+        while True:
+            lidar = startup_lidar()
+            lidar.reset()
+            consecutive_scans_last = None
+            nanos_first_points = []
+            start_time = time.perf_counter()
+            try:
+                for scan in lidar.iter_scans(): # (quality, angle, distance)
                     scan_with_time = (time.perf_counter(), scan)
-                except RPLidarException:
-                    print("RPLidar Exception caught, attempting to restart and reset...")
-                    return lidar_restarts + 1
-                # Submit a single task to the pool, non-blocking
-                result_obj = pool.apply_async(find_pendulum_thread, args=(scan_with_time,))
-                results.append(result_obj)
+                    # Submit a single task to the pool, non-blocking
+                    result_obj = pool.apply_async(find_pendulum_thread, args=(scan_with_time,))
+                    results.append(result_obj)
 
-                while len(completed_results) < len(results):
-                    for result in results:
-                        # Check if the task is complete without blocking the main process...
-                        if result.ready() and result not in completed_results:
-                            # Non-blocking get: use a very short timeout or check ready() first
-                            # The get() will return immediately once ready() is True
-                            value = result.get(timeout=0.1)
-                            if value[0] == 0:
-                                value_nanos = value[1]
-                                value_scan = value[2]
-                                if len(value_scan) > 1:
-                                    nano_first_point = (value_nanos, value_scan[0][1], value_scan[0][0])
-                                    nanos_first_points.append(nano_first_point)
-                                    if len(nanos_first_points) >= 130:
-                                        result_obj = pool.apply_async(process_nanos_first_points,
-                                                                      args=(copy.deepcopy(nanos_first_points),
-                                                                            write_api_key,
-                                                                            lidar_restarts,))
-                                        results.append(result_obj)
-                                        nanos_first_points = []
-                                # print(f"Pendulum {nanos_str(value_nanos)} results[{len(value_scan)}]: {value_scan}", flush=True)
-                                completed_results.append(result)
-                            if value[0] == 1:
-                                # print(f"nano_first_angles: {value[1]}", flush=True)
-                                completed_results.append(result)
+                    while len(completed_results) < len(results):
+                        for result in results:
+                            # Check if the task is complete without blocking the main process...
+                            if result.ready() and result not in completed_results:
+                                # Non-blocking get: use a very short timeout or check ready() first
+                                # The get() will return immediately once ready() is True
+                                value = result.get(timeout=0.1)
+                                if value[0] == 0:
+                                    value_nanos = value[1]
+                                    value_scan = value[2]
+                                    if len(value_scan) > 1:
+                                        nano_first_point = (value_nanos, value_scan[0][1], value_scan[0][0])
+                                        nanos_first_points.append(nano_first_point)
+                                        if len(nanos_first_points) >= apply_async_with_n:
+                                            result_obj = pool.apply_async(process_nanos_first_points,
+                                                                          args=(copy.deepcopy(nanos_first_points),
+                                                                                write_api_key,
+                                                                                lidar_restarts,))
+                                            results.append(result_obj)
+                                            nanos_first_points = []
+                                    # print(f"Pendulum {nanos_str(value_nanos)} results[{len(value_scan)}]: {value_scan}", flush=True)
+                                    completed_results.append(result)
+                                if value[0] == 1:
+                                    # print(f"nano_first_angles: {value[1]}", flush=True)
+                                    completed_results.append(result)
+                    iteration_cnt += 1
+                    if iteration_cnt % iteration_n == 0:
+                        # 5.0-5.5 Hz (or readings/swing) no processing; half speed.
+                        # 12.9-13.0 Hz no processing; full speed.
+                        print(f"{iteration_n/(time.perf_counter() - start_time):.1f} Hz", flush=True)
+                        start_time = time.perf_counter()
+            except RPLidarException as e:
+                health = lidar.get_health()
+                print(f"RPLidar Exception: {e}; Lidar Health: {health}")
+                lidar_restarts += 1
+                lidar.reset()
+                lidar.stop()
+                lidar.stop_motor() # should not need this
+                lidar.disconnect() # because __init__() does a .connect()
+                sleep(5)
+            except KeyboardInterrupt:
+                print('Stoping...')
+                lidar.stop()
+                lidar.stop_motor()
+                lidar.disconnect()
+                return
 
-                # pendulum.update_max_swing_angles(scan_data_diff)
-
-                iteration_cnt += 1
-                if iteration_cnt % 30 == 0:
-                    # 5.0-5.5 Hz (or readings/swing) no processing; half speed.
-                    # 12.9-13.0 Hz no processing; full speed.
-                    # 8-10 Hz first processing; full speed.
-                    print(f"{30.0/(time.perf_counter() - start_time):.1f} Hz")
-                    start_time = time.perf_counter()
-    finally:
-        print("Done! Stopping motor, disconnecting & closing multiprocessing pool...")
-        lidar.stop()
-        lidar.stop_motor()
-        lidar.disconnect()
-        pool.close()
-        pool.join()
 import configparser
 import os
+from time import sleep
 
 # When a new process starts using the 'spawn' method, it re-imports the main script.
 # Any code at the global scope that is not protected by an if __name__ == '__main__': block will be executed during
 # this re-import process, which can lead to infinite loops of spawning new processes or other errors.
 if __name__ == '__main__':
+    # Copy config.ini.example to config.ini and change the WRITE_API_KEY to the one that you get from
+    # https://thingspeak.mathworks.com/channels/??????/api_keys
     config = configparser.ConfigParser()
     ini_path = os.path.join(os.getcwd(), 'config.ini')
     config.read(ini_path)
     write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY')
-    lidar_restarts = 0
-    while True:
-        lidar_restarts = run_scanner(write_api_key, lidar_restarts)
-        sleep(5)
+    run_scanner(write_api_key.strip('\'"'))

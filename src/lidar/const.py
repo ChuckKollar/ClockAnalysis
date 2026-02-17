@@ -36,6 +36,7 @@ def startup_lidar():
     lidar = RPLidar(RPLIDAR_PORT, BAUDRATE)
     # DEFAULT_MOTOR_PWM = 660 (default)
     #lidar.motor_speed = 330
+    lidar.clean_input()
 
     info = lidar.get_info()
     print(f"Lidar Info: {info}")
