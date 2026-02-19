@@ -70,9 +70,11 @@ def things_speak_url(write_api_key, pendulum_period, projected_daily_deviation, 
            f"&field4={pendulum_swing_computed}&field5={pendulum_found_failures}"
            f"&field6={lidar_restarts}"
            )
-    logging.debug(f"pendulum_period: {pendulum_period:.2f}; projected_daily_deviation: {projected_daily_deviation:.2f}"
-                  f"; pendulum_swing: {pendulum_swing:.2f}; pendulum_swing_computed: {pendulum_swing_computed:.2f}"
-                  f"; pendulum_found_failures: {pendulum_found_failures}; lidar_restarts: {lidar_restarts}")
+    logging.info(f"pendulum_period: {pendulum_period:.2f} (sec/cycle)"
+                 f"; projected_daily_deviation: {projected_daily_deviation:.2f} (sec/day)"
+                 f"; pendulum_swing: {pendulum_swing:.2f} (mm)"
+                 f"; pendulum_swing_computed: {pendulum_swing_computed:.2f} (mm)"
+                 f"; pendulum_found_failures: {pendulum_found_failures}; lidar_restarts: {lidar_restarts}")
     return url
 
 def thingsspeak_post(write_api_key, period, error, swing, swing_computed, lidar_restarts):
@@ -164,7 +166,7 @@ def run_scanner(write_api_key):
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
-                sleep(30)
+                return
             except KeyboardInterrupt:
                 logging.error('Stoping...')
                 lidar.stop()
@@ -186,4 +188,7 @@ if __name__ == '__main__':
     ini_path = os.path.join(os.getcwd(), 'config.ini')
     config.read(ini_path)
     write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY')
-    run_scanner(write_api_key.strip('\'"'))
+    while True:
+        consecutive_scans_last = None
+        sleep(5)
+        run_scanner(write_api_key.strip('\'"'))
