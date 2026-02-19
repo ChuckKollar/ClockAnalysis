@@ -106,7 +106,7 @@ def process_nanos_first_points(nano_first_angles_orig, write_api_key, lidar_rest
     # the computed swing is how far left and right the pendulum would move according to the sine_function
     pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
-    if outliers:
+    if outliers or abs(projected_daily_deviation) > 600.0 :
         logging.info(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
     thingsspeak_post(write_api_key, pendulum_period, projected_daily_deviation, pendulum_swing,
                      pendulum_swing_computed, lidar_restarts)
@@ -211,3 +211,7 @@ if __name__ == '__main__':
         # 2026-02-19 10:05:17,280 - INFO - root - pendulum_period: 2.20 (sec/cycle); projected_daily_deviation: 8816.14 (sec/day); pendulum_swing: 80.14 (mm); pendulum_swing_computed: 16.30 (mm); pendulum_found_failures: 2; lidar_restarts: 0
         run_scanner(write_api_key.strip('\'"'))
     print("Stopping...")
+
+    # TO DO...
+    # 1) Look at data where time difference is greater than 600 sec (10 min)
+    # 2) output another data point which is the hourly time difference.
