@@ -1,5 +1,9 @@
 import math
 from rplidar import RPLidar
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO) # Set the minimum level for this logger
 
 # Define the serial port name.
 # Be sure to adjust this to your specific system.
@@ -32,17 +36,17 @@ def lidar_readings_to_cartesian(readings):
     """
     return [_polar_to_cartesian(x[2], math.radians(x[1])) for x in readings]
 
-def startup_lidar():
-    lidar = RPLidar(RPLIDAR_PORT, BAUDRATE)
+def startup_lidar(logger):
+    lidar = RPLidar(RPLIDAR_PORT, BAUDRATE, logger=logger)
     # DEFAULT_MOTOR_PWM = 660 (default)
     #lidar.motor_speed = 330
     lidar.clean_input()
 
     info = lidar.get_info()
-    print(f"Lidar Info: {info}")
+    logger.info(f"Lidar Info: {info}")
 
     health = lidar.get_health()
-    print(f"Lidar Health: {health}")
+    logger.info(f"Lidar Health: {health}")
 
     lidar.connect()
     lidar.clean_input()

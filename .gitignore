@@ -1,5 +1,6 @@
 .idea/**
 src/lidar/Robotica/config.ini
+src/lidar/logs/**
 # Python temp files
 __pycache__/
 *.py[cod]

@@ -6,7 +6,13 @@ from lidar.const import startup_lidar
 from lidar.find_proximal_points import find_consecutive_proximal_points, find_dissimilar_scans
 import logging
 
-logging.basicConfig(level=logging.ERROR)
+# Configure the root logger
+logging.basicConfig(
+    level=logging.INFO, # Set the minimum log level to capture
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', # Customize the log message format
+    filename='../logs/monitor_pendulum.log', # Log to a file (optional, defaults to console)
+    filemode='a' # Append to the log file (default is 'a', 'w' overwrites)
+)
 
 # Install this to get the right LIDAR package...
 # $ pip install rplidar-roboticia
@@ -32,7 +38,7 @@ consecutive_scans_last = None
 def find_pendulum_thread(scan_w_time):
     """
     This function is used to find the Pendulum (only moving thing) in the LIDAR scan.
-    NOTE: any exceptions that heppen here will not be propagated to the caller.
+    NOTE: any exceptions that happened here will not be propagated to the caller.
     """
     global consecutive_scans_last, pendulum_found_failures
     nanos = scan_w_time[0]
@@ -64,21 +70,21 @@ def things_speak_url(write_api_key, pendulum_period, projected_daily_deviation, 
            f"&field4={pendulum_swing_computed}&field5={pendulum_found_failures}"
            f"&field6={lidar_restarts}"
            )
-    print(f"pendulum_period: {pendulum_period:.2f}; projected_daily_deviation: {projected_daily_deviation:.2f}"
-          f"; pendulum_swing: {pendulum_swing:.2f}; pendulum_swing_computed: {pendulum_swing_computed:.2f}"
-          f"; pendulum_found_failures: {pendulum_found_failures}; lidar_restarts: {lidar_restarts}")
+    logging.debug(f"pendulum_period: {pendulum_period:.2f}; projected_daily_deviation: {projected_daily_deviation:.2f}"
+                  f"; pendulum_swing: {pendulum_swing:.2f}; pendulum_swing_computed: {pendulum_swing_computed:.2f}"
+                  f"; pendulum_found_failures: {pendulum_found_failures}; lidar_restarts: {lidar_restarts}")
     return url
 
 def thingsspeak_post(write_api_key, period, error, swing, swing_computed, lidar_restarts):
     try:
         response = requests.post(things_speak_url(write_api_key, period, error, swing, swing_computed, lidar_restarts))
         if response.status_code == 200:
-            print(f"Data sent OK: {response.text}")
+            logging.info(f"Data sent OK: {response.text}")
         else:
-            print(f"Failed to send data. Status code: {response.status_code}, Response: {response.text}")
+            logging.error(f"Failed to send data. Status code: {response.status_code}, Response: {response.text}")
 
     except requests.exceptions.RequestException as e:
-        print(f"Connection failed: {e}")
+        logging.error(f"Connection failed: {e}")
 
 def process_nanos_first_points(nano_first_angles, write_api_key, lidar_restarts):
     """
@@ -109,8 +115,7 @@ def run_scanner(write_api_key):
     completed_results = []
     with multiprocessing.Pool(processes=3) as pool:
         while True:
-            lidar = startup_lidar()
-            lidar.reset()
+            lidar = startup_lidar(logging)
             consecutive_scans_last = None
             nanos_first_points = []
             start_time = time.perf_counter()
@@ -150,19 +155,18 @@ def run_scanner(write_api_key):
                     if iteration_cnt % iteration_n == 0:
                         # 5.0-5.5 Hz (or readings/swing) no processing; half speed.
                         # 12.9-13.0 Hz no processing; full speed.
-                        print(f"{iteration_n/(time.perf_counter() - start_time):.1f} Hz", flush=True)
+                        logging.info(f"{iteration_n/(time.perf_counter() - start_time):.1f} Hz")
                         start_time = time.perf_counter()
             except RPLidarException as e:
                 health = lidar.get_health()
-                print(f"RPLidar Exception: {e}; Lidar Health: {health}")
+                logging.error(f"RPLidar Exception: {e}; Lidar Health: {health}")
                 lidar_restarts += 1
-                lidar.reset()
                 lidar.stop()
-                lidar.stop_motor() # should not need this
-                lidar.disconnect() # because __init__() does a .connect()
-                sleep(5)
+                lidar.stop_motor()
+                lidar.disconnect()
+                sleep(30)
             except KeyboardInterrupt:
-                print('Stoping...')
+                logging.error('Stoping...')
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()

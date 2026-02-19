@@ -2,6 +2,10 @@ import numpy as np
 from typing import List, Tuple
 from lidar.const import lidar_readings_to_cartesian, SCAN_RADIUS_MM
 import math
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG) # Set the minimum level for this logger
 
 def angular_distance_degrees(angle1, angle2):
     """
@@ -111,6 +115,8 @@ def find_dissimilar_scans(scan_a: List, scan_b: List, threshold: float=2.5):
             found.append(pts_b)
     if len(found) != 1:
         return  [len(found)]
+
+    #logger.debug(f"find_dissimilar_scans: {found}")
     return found[0]
 
 if __name__ == "__main__":
