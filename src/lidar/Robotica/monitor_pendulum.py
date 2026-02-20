@@ -34,26 +34,6 @@ def nanos_str(nanos):
     dt_object = datetime.fromtimestamp(seconds)
     return f"{dt_object.strftime('%Y-%m-%d %H:%M:%S')}.{str(int(nanos_remainder)).zfill(9)}"
 
-consecutive_scans_last = None
-def find_pendulum_thread(scan_w_time):
-    """
-    This function is used to find the Pendulum (only moving thing) in the LIDAR scan.
-    NOTE: any exceptions that happened here will not be propagated to the caller.
-    """
-    global consecutive_scans_last, pendulum_found_failures
-    nanos = scan_w_time[0]
-    consecutive_scans = find_consecutive_proximal_points(scan_w_time[1])
-    if consecutive_scans_last is None:
-        consecutive_scans_last = consecutive_scans
-        return 0, nanos, []
-    scan_data_diff = find_dissimilar_scans(consecutive_scans_last, consecutive_scans)
-    consecutive_scans_last = consecutive_scans
-    if len(scan_data_diff) == 1:
-        pendulum_found_failures += 1
-    return 0, nanos, scan_data_diff
-
-from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
-from lidar.analyze_clock_rate import analyze_clock_rate
 import requests
 
 # https://thingspeak.mathworks.com/channels/3258476/private_show
@@ -62,7 +42,6 @@ import requests
 def things_speak_url_1(write_api_key, pendulum_period, projected_daily_deviation, pendulum_swing,
                        pendulum_swing_computed, lidar_restarts):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
-    # GET https://api.thingspeak.com/update?api_key=87YUBRFXK5VZOLJG&field1=0
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
@@ -88,10 +67,30 @@ def thingsspeak_post(url):
     except requests.exceptions.RequestException as e:
         logging.error(f"Connection failed: {e}")
 
+consecutive_scans_last = None
+def find_pendulum_process(scan_w_time):
+    """
+    This function is used to find the Pendulum (only moving thing) in the LIDAR scan.
+    NOTE: any exceptions that happened here will not be propagated to the caller.
+    """
+    global consecutive_scans_last, pendulum_found_failures
+    nanos = scan_w_time[0]
+    consecutive_scans = find_consecutive_proximal_points(scan_w_time[1])
+    if consecutive_scans_last is None:
+        consecutive_scans_last = consecutive_scans
+        return 0, nanos, []
+    scan_data_diff = find_dissimilar_scans(consecutive_scans_last, consecutive_scans)
+    consecutive_scans_last = consecutive_scans
+    if len(scan_data_diff) == 1:
+        pendulum_found_failures += 1
+    return 0, nanos, scan_data_diff
+
+from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
+from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
 R_SQUARED_THRESHOLD = 0.25 # The model has low predictive power.
-def process_nanos_first_points_min(nano_first_angles_orig, write_api_key, lidar_restarts):
+def pendulum_info_min_process(nano_first_angles_orig, write_api_key, lidar_restarts):
     """
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
@@ -118,7 +117,7 @@ def process_nanos_first_points_min(nano_first_angles_orig, write_api_key, lidar_
                                         pendulum_swing_computed, lidar_restarts))
     return 1, nano_first_angles
 
-def process_nanos_first_points_hr(nano_first_angles_orig, write_api_key):
+def pendulum_info_hr_process(nano_first_angles_orig, write_api_key):
     """
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
@@ -161,7 +160,7 @@ def run_scanner(write_api_key):
                 for scan in lidar.iter_scans(): # (quality, angle, distance)
                     scan_with_time = (time.perf_counter(), scan)
                     # Submit a single task to the pool, non-blocking
-                    result_obj = pool.apply_async(find_pendulum_thread, args=(scan_with_time,))
+                    result_obj = pool.apply_async(find_pendulum_process, args=(scan_with_time,))
                     results.append(result_obj)
 
                     while len(completed_results) < len(results):
@@ -182,13 +181,13 @@ def run_scanner(write_api_key):
                                         # channel's data. So if there is an hour one send it and throw away the minute
                                         # one.
                                         if len(nanos_first_points_hr) >= APPLY_ASYNC_WITH_N*60.0:
-                                            result_obj = pool.apply_async(process_nanos_first_points_hr,
+                                            result_obj = pool.apply_async(pendulum_info_hr_process,
                                                                           args=(copy.deepcopy(nanos_first_points_hr),
                                                                                 write_api_key,))
                                             results.append(result_obj)
                                             nanos_first_points_hr = []
                                         elif len(nanos_first_points_min) >= APPLY_ASYNC_WITH_N:
-                                            result_obj = pool.apply_async(process_nanos_first_points_min,
+                                            result_obj = pool.apply_async(pendulum_info_min_process,
                                                                           args=(copy.deepcopy(nanos_first_points_min),
                                                                                 write_api_key,
                                                                                 lidar_restarts,))
