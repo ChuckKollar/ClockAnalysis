@@ -34,8 +34,6 @@ def nanos_str(nanos):
     dt_object = datetime.fromtimestamp(seconds)
     return f"{dt_object.strftime('%Y-%m-%d %H:%M:%S')}.{str(int(nanos_remainder)).zfill(9)}"
 
-import requests
-
 # https://thingspeak.mathworks.com/channels/3258476/private_show
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
@@ -57,6 +55,8 @@ def things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swin
                  f"; lidar_restarts: {lidar_restarts}"
                  f"; R Squared {r_squared:.4f}")
     return url
+
+import requests
 
 def thingsspeak_post(url):
     try:
@@ -91,7 +91,7 @@ from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
 from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
-R_SQUARED_THRESHOLD = 0.4 # .25 was not sensitive enough see fit_sine_with_fft_guess
+R_SQUARED_THRESHOLD = 0.6 # .25 was not sensitive enough see fit_sine_with_fft_guess
 def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     """
     This is used to find information about the pendulum using the time associated with the
@@ -108,7 +108,7 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     # the computed swing is how far left and right the pendulum would move according to the sine_function
     pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
-    if outliers or abs(projected_daily_deviation) > 600.0 :
+    if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < R_SQUARED_THRESHOLD:
         logging.info(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
     # This doesn't say how to fix the data, just to determine that it was bad and not to use it.
     # See discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
@@ -150,7 +150,7 @@ def run_scanner(lidar_restarts):
     iteration_cnt = 0
     results = []
     completed_results = []
-    with multiprocessing.Pool(processes=3) as pool:
+    with multiprocessing.Pool(processes=4) as pool:
         while True:
             lidar = startup_lidar(logging)
             consecutive_scans_last = None
@@ -204,11 +204,10 @@ def run_scanner(lidar_restarts):
             except RPLidarException as e:
                 health = lidar.get_health()
                 logging.error(f"RPLidar Exception: {e}; Lidar Health: {health}")
-                lidar_restarts += 1
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
-                return lidar_restarts
+                return lidar_restarts+1
             except KeyboardInterrupt:
                 logging.error('Stoping...')
                 lidar.stop()
@@ -241,3 +240,9 @@ if __name__ == '__main__':
         sleep(5)
         # this needs to be a local and not a global because it needs to be passed to another process
         lidar_restarts = run_scanner(lidar_restarts)
+
+# TODO:
+# 1) Need to test if this detects a stopped or bumped pendulum or does the R^2 negate it?
+# 2) Need to determine if there is a way to detect what to set thresholds like that of
+# find_consecutive_proximal_points and remove_outliers_zscore.
+# 3) Need to find out why the LIDAR generates so many errors.
