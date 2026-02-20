@@ -39,7 +39,7 @@ import requests
 # https://thingspeak.mathworks.com/channels/3258476/private_show
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
-def things_speak_url_1(write_api_key, pendulum_period, projected_daily_deviation, pendulum_swing,
+def things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
                        pendulum_swing_computed, lidar_restarts):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
@@ -90,7 +90,7 @@ from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
 R_SQUARED_THRESHOLD = 0.25 # The model has low predictive power.
-def pendulum_info_min_process(nano_first_angles_orig, write_api_key, lidar_restarts):
+def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     """
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
@@ -113,11 +113,11 @@ def pendulum_info_min_process(nano_first_angles_orig, write_api_key, lidar_resta
     if r_squared < R_SQUARED_THRESHOLD:
         logging.info(f"Data discarded because R^2: {r_squared} < threshold of {R_SQUARED_THRESHOLD}; pendulum_period: {pendulum_period}; ")
         return 1, []
-    thingsspeak_post(things_speak_url_1(write_api_key, pendulum_period, projected_daily_deviation, pendulum_swing,
+    thingsspeak_post(things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
                                         pendulum_swing_computed, lidar_restarts))
     return 1, nano_first_angles
 
-def pendulum_info_hr_process(nano_first_angles_orig, write_api_key):
+def pendulum_info_hr_process(nano_first_angles_orig):
     """
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
@@ -139,13 +139,10 @@ import multiprocessing
 import copy
 import traceback
 
-start_time = time.time()
-
 APPLY_ASYNC_WITH_N = 13.4 * 60.0
-def run_scanner(write_api_key):
-    global consecutive_scans_last
-    iteration_n = 60
-    lidar_restarts = 0
+ITERATION_N = 60
+def run_scanner(lidar_restarts):
+    global consecutive_scans_last, nanos_first_points_min, nanos_first_points_hr
     iteration_cnt = 0
     results = []
     completed_results = []
@@ -153,8 +150,6 @@ def run_scanner(write_api_key):
         while True:
             lidar = startup_lidar(logging)
             consecutive_scans_last = None
-            nanos_first_points_min = []
-            nanos_first_points_hr = []
             start_time = time.perf_counter()
             try:
                 for scan in lidar.iter_scans(): # (quality, angle, distance)
@@ -182,14 +177,12 @@ def run_scanner(write_api_key):
                                         # one.
                                         if len(nanos_first_points_hr) >= APPLY_ASYNC_WITH_N*60.0:
                                             result_obj = pool.apply_async(pendulum_info_hr_process,
-                                                                          args=(copy.deepcopy(nanos_first_points_hr),
-                                                                                write_api_key,))
+                                                                          args=(copy.deepcopy(nanos_first_points_hr),))
                                             results.append(result_obj)
                                             nanos_first_points_hr = []
                                         elif len(nanos_first_points_min) >= APPLY_ASYNC_WITH_N:
                                             result_obj = pool.apply_async(pendulum_info_min_process,
                                                                           args=(copy.deepcopy(nanos_first_points_min),
-                                                                                write_api_key,
                                                                                 lidar_restarts,))
                                             results.append(result_obj)
                                             nanos_first_points_min = []
@@ -199,10 +192,10 @@ def run_scanner(write_api_key):
                                     # print(f"nano_first_angles: {value[1]}", flush=True)
                                     completed_results.append(result)
                     iteration_cnt += 1
-                    if iteration_cnt % iteration_n == 0:
+                    if iteration_cnt % ITERATION_N == 0:
                         # 5.0-5.5 Hz (or readings/swing) no processing; half speed.
                         # 12.9-13.0 Hz no processing; full speed.
-                        logging.info(f"{iteration_n/(time.perf_counter() - start_time):.1f} Hz")
+                        logging.info(f"{ITERATION_N / (time.perf_counter() - start_time):.1f} Hz")
                         start_time = time.perf_counter()
             except RPLidarException as e:
                 health = lidar.get_health()
@@ -211,30 +204,36 @@ def run_scanner(write_api_key):
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
-                return
+                return lidar_restarts
             except KeyboardInterrupt:
                 logging.error('Stoping...')
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
-                return
+                return lidar_restarts
 
 import configparser
 import os
 from time import sleep
 
+nanos_first_points_min = []
+nanos_first_points_hr = []
+
+# Copy config.ini.example to config.ini and change the WRITE_API_KEY to the one that you get from
+# https://thingspeak.mathworks.com/channels/??????/api_keys
+config = configparser.ConfigParser()
+ini_path = os.path.join(os.getcwd(), 'config.ini')
+config.read(ini_path)
+write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY').strip('\'"')
+
 # When a new process starts using the 'spawn' method, it re-imports the main script.
 # Any code at the global scope that is not protected by an if __name__ == '__main__': block will be executed during
 # this re-import process, which can lead to infinite loops of spawning new processes or other errors.
 if __name__ == '__main__':
-    # Copy config.ini.example to config.ini and change the WRITE_API_KEY to the one that you get from
-    # https://thingspeak.mathworks.com/channels/??????/api_keys
-    config = configparser.ConfigParser()
-    ini_path = os.path.join(os.getcwd(), 'config.ini')
-    config.read(ini_path)
-    write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY')
     print("Starting...")
+    lidar_restarts = 0
     while True:
         consecutive_scans_last = None
         sleep(5)
-        run_scanner(write_api_key.strip('\'"'))
+        # this needs to be a local and not a global because it needs to be passed to another process
+        lidar_restarts = run_scanner(lidar_restarts)
