@@ -142,6 +142,7 @@ import traceback
 
 start_time = time.time()
 
+APPLY_ASYNC_WITH_N = 13.4 * 60.0
 def run_scanner(write_api_key):
     global consecutive_scans_last
     iteration_n = 60
@@ -153,7 +154,6 @@ def run_scanner(write_api_key):
         while True:
             lidar = startup_lidar(logging)
             consecutive_scans_last = None
-            apply_async_with_n = 13.4 * 60.0
             nanos_first_points_min = []
             nanos_first_points_hr = []
             start_time = time.perf_counter()
@@ -178,20 +178,22 @@ def run_scanner(write_api_key):
                                         nano_first_point = (value_nanos, value_scan[0][1], value_scan[0][0])
                                         nanos_first_points_min.append(nano_first_point)
                                         nanos_first_points_hr.append(nano_first_point)
-                                        # Aggregate this over the minute and also the hour....
-                                        if len(nanos_first_points_min) >= apply_async_with_n:
+                                        # ThingSpeak enforces a minimum interval of 15 seconds between updates to a
+                                        # channel's data. So if there is an hour one send it and throw away the minute
+                                        # one.
+                                        if len(nanos_first_points_hr) >= APPLY_ASYNC_WITH_N*60.0:
+                                            result_obj = pool.apply_async(process_nanos_first_points_hr,
+                                                                          args=(copy.deepcopy(nanos_first_points_hr),
+                                                                                write_api_key,))
+                                            results.append(result_obj)
+                                            nanos_first_points_hr = []
+                                        elif len(nanos_first_points_min) >= APPLY_ASYNC_WITH_N:
                                             result_obj = pool.apply_async(process_nanos_first_points_min,
                                                                           args=(copy.deepcopy(nanos_first_points_min),
                                                                                 write_api_key,
                                                                                 lidar_restarts,))
                                             results.append(result_obj)
                                             nanos_first_points_min = []
-                                        if len(nanos_first_points_hr) >= apply_async_with_n*60.0:
-                                            result_obj = pool.apply_async(process_nanos_first_points_hr,
-                                                                          args=(copy.deepcopy(nanos_first_points_hr),
-                                                                                write_api_key,))
-                                            results.append(result_obj) # Don't push this twice!!!!! BUG
-                                            nanos_first_points_hr = []
                                     # print(f"Pendulum {nanos_str(value_nanos)} results[{len(value_scan)}]: {value_scan}", flush=True)
                                     completed_results.append(result)
                                 if value[0] == 1:
