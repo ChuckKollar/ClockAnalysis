@@ -40,20 +40,22 @@ import requests
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
 def things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                       pendulum_swing_computed, lidar_restarts):
+                       pendulum_swing_computed, lidar_restarts, r_squared):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
            f"&field1={pendulum_period}&field2={projected_daily_deviation}&field3={pendulum_swing}"
            f"&field4={pendulum_swing_computed}&field5={pendulum_found_failures}"
-           f"&field6={lidar_restarts}"
+           f"&field6={lidar_restarts}&field8={r_squared}"
            )
     logging.info(f"pendulum_period: {pendulum_period:.2f} (sec/cycle)"
                  f"; projected_daily_deviation: {projected_daily_deviation:.2f} (sec/day)"
                  f"; pendulum_swing: {pendulum_swing:.2f} (mm)"
                  f"; pendulum_swing_computed: {pendulum_swing_computed:.2f} (mm)"
-                 f"; pendulum_found_failures: {pendulum_found_failures}; lidar_restarts: {lidar_restarts}")
+                 f"; pendulum_found_failures: {pendulum_found_failures}"
+                 f"; lidar_restarts: {lidar_restarts}"
+                 f"; R Squared {r_squared:.4f}")
     return url
 
 def thingsspeak_post(url):
@@ -111,10 +113,12 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     # This doesn't say how to fix the data, just to determine that it was bad and not to use it.
     # See discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
     if r_squared < R_SQUARED_THRESHOLD:
-        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {R_SQUARED_THRESHOLD}; pendulum_period: {pendulum_period}; ")
+        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {R_SQUARED_THRESHOLD};"
+                     f" pendulum_period: {pendulum_period}; ")
+        thingsspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}&field8={r_squared}")
         return 1, []
     thingsspeak_post(things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                                        pendulum_swing_computed, lidar_restarts))
+                                        pendulum_swing_computed, lidar_restarts, r_squared))
     return 1, nano_first_angles
 
 def pendulum_info_hr_process(nano_first_angles_orig):
@@ -231,7 +235,7 @@ write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY').strip('\'"')
 # this re-import process, which can lead to infinite loops of spawning new processes or other errors.
 if __name__ == '__main__':
     print("Starting...")
-    lidar_restarts = 0
+    lidar_restarts: int = 0
     while True:
         consecutive_scans_last = None
         sleep(5)
