@@ -2,7 +2,7 @@ import numpy as np
 from scipy import stats
 
 
-def remove_outliers_zscore(data, column_index, threshold=2.5):
+def remove_outliers_zscore(data, column_index, threshold=2.25):
     """
     Removes outliers from an array of tuples based on the Z-score of a specific column.
 
