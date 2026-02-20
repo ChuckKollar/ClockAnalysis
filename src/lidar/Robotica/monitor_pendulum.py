@@ -89,7 +89,7 @@ from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
 from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
-R_SQUARED_THRESHOLD = 0.25 # The model has low predictive power.
+R_SQUARED_THRESHOLD = 0.4 # .25 was not sensitive enough see fit_sine_with_fft_guess
 def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     """
     This is used to find information about the pendulum using the time associated with the
