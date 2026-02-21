@@ -62,12 +62,12 @@ def thingsspeak_post(url):
     try:
         response = requests.post(url)
         if response.status_code == 200:
-            logging.info(f"Data sent OK: {response.text}")
+            logging.info(f"ThingSpeak: Data sent OK: {response.text}")
         else:
-            logging.error(f"Failed to send data. Status code: {response.status_code}, Response: {response.text}")
+            logging.error(f"ThingSpeak: Failed to send data. Status code: {response.status_code}, Response: {response.text}")
 
     except requests.exceptions.RequestException as e:
-        logging.error(f"Connection failed: {e}")
+        logging.error(f"ThingSpeak: Connection failed: {e}")
 
 consecutive_scans_last = None
 def find_pendulum_process(scan_w_time):
@@ -91,7 +91,7 @@ from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
 from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
-R_SQUARED_THRESHOLD = 0.6 # .25 was not sensitive enough see fit_sine_with_fft_guess
+R_SQUARED_THRESHOLD = 0.7 # .25 was not sensitive enough see fit_sine_with_fft_guess; Typically 0.99?? is seen in logs.
 def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     """
     This is used to find information about the pendulum using the time associated with the
@@ -116,6 +116,7 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
         logging.info(f"Data discarded because R^2: {r_squared} < threshold of {R_SQUARED_THRESHOLD};"
                      f" pendulum_period: {pendulum_period}; ")
         thingsspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}&field8={r_squared}")
+        # the empty array signifies that no data was found.
         return 1, []
     thingsspeak_post(things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
                                         pendulum_swing_computed, lidar_restarts, r_squared))
@@ -139,62 +140,80 @@ def pendulum_info_hr_process(nano_first_angles_orig):
     thingsspeak_post(url)
     return 1, nano_first_angles
 
-import multiprocessing
+from typing import List
+from multiprocessing import Pool
+from multiprocessing.pool import AsyncResult
 import copy
 import traceback
 
-APPLY_ASYNC_WITH_N = 13.4 * 60.0
+APPLY_ASYNC_WITH_N = 13.2 * 60.0
 ITERATION_N = 60
 def run_scanner(lidar_restarts):
-    global consecutive_scans_last, nanos_first_points_min, nanos_first_points_hr
-    iteration_cnt = 0
-    results = []
-    completed_results = []
-    with multiprocessing.Pool(processes=4) as pool:
+    """
+    This function simply grabs data from the LIDAR as fast as it can and sends data for analysis to one of the
+    processes in the pool. The first step is to use the 'find_pendulum_process' to identify the part of the scan
+    that represents the pendulum. It collects the left most point of each pendulum in an array and when enough
+    points are gathered it sends the data to a process that does data cleaning, curve fitting, R^2 analysis and
+    posting to ThingSpeak.
+
+    It is vitally important to spend as little time as possible in this loop. Even functions like 'len()' have
+    been removed in favor of keeping a running count of the items in a list. It should be possible to go for at
+    least 30 minutes or so without seeing a LIDAR error of any type. ALL work of any nature should be done in
+    subprocesses!
+    """
+    global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
+    iteration_cnt: int = 0
+    results: List[AsyncResult] = []
+    completed_results: List[AsyncResult] = []
+    # https://docs.python.org/3/library/multiprocessing.html
+    with Pool(processes=4) as pool:
+        lidar = startup_lidar(logging)
+        start_time = time.perf_counter()
         while True:
-            lidar = startup_lidar(logging)
-            consecutive_scans_last = None
-            start_time = time.perf_counter()
             try:
                 for scan in lidar.iter_scans(): # (quality, angle, distance)
                     scan_with_time = (time.perf_counter(), scan)
                     # Submit a single task to the pool, non-blocking
-                    result_obj = pool.apply_async(find_pendulum_process, args=(scan_with_time,))
+                    result_obj: AsyncResult = pool.apply_async(find_pendulum_process, args=(scan_with_time,))
                     results.append(result_obj)
 
-                    while len(completed_results) < len(results):
-                        for result in results:
-                            # Check if the task is complete without blocking the main process...
-                            if result.ready() and result not in completed_results:
-                                # Non-blocking get: use a very short timeout or check ready() first
-                                # The get() will return immediately once ready() is True
-                                value = result.get(timeout=0.1)
-                                if value[0] == 0:
-                                    value_nanos = value[1]
-                                    value_scan = value[2]
-                                    if len(value_scan) > 1:
-                                        nano_first_point = (value_nanos, value_scan[0][1], value_scan[0][0])
-                                        nanos_first_points_min.append(nano_first_point)
-                                        nanos_first_points_hr.append(nano_first_point)
-                                        # ThingSpeak enforces a minimum interval of 15 seconds between updates to a
-                                        # channel's data. So if there is an hour one send it and throw away the minute
-                                        # one.
-                                        if len(nanos_first_points_hr) >= APPLY_ASYNC_WITH_N*60.0:
-                                            result_obj = pool.apply_async(pendulum_info_hr_process,
-                                                                          args=(copy.deepcopy(nanos_first_points_hr),))
-                                            results.append(result_obj)
-                                            nanos_first_points_hr = []
-                                        elif len(nanos_first_points_min) >= APPLY_ASYNC_WITH_N:
-                                            result_obj = pool.apply_async(pendulum_info_min_process,
-                                                                          args=(copy.deepcopy(nanos_first_points_min),
-                                                                                lidar_restarts,))
-                                            results.append(result_obj)
-                                            nanos_first_points_min = []
-                                    # print(f"Pendulum {nanos_str(value_nanos)} results[{len(value_scan)}]: {value_scan}", flush=True)
-                                    completed_results.append(result)
-                                if value[0] == 1:
-                                    # print(f"nano_first_angles: {value[1]}", flush=True)
-                                    completed_results.append(result)
+                    for result in results:
+                        # Check if the task is complete without blocking the main process...
+                        if result.ready() and result not in completed_results:
+                            # Non-blocking get: use a very short timeout or check ready() first
+                            # The get() will return immediately once ready() is True
+                            value = result.get(timeout=0.1)
+                            if value[0] == 0:
+                                value_nanos = value[1]
+                                value_scan = value[2]
+                                if len(value_scan) > 1:
+                                    nano_first_point = (value_nanos, value_scan[0][1], value_scan[0][0])
+                                    nanos_first_points_min.append(nano_first_point)
+                                    nanos_first_points_min_len += 1
+                                    nanos_first_points_hr.append(nano_first_point)
+                                    nanos_first_points_hr_len += 1
+                                    # ThingSpeak enforces a minimum interval of 15 seconds between updates to a
+                                    # channel's data. So if there is an hour one send it and throw away the minute
+                                    # one.
+                                    if nanos_first_points_hr_len >= APPLY_ASYNC_WITH_N*60.0:
+                                        result_obj: AsyncResult = pool.apply_async(pendulum_info_hr_process,
+                                                                                   args=(copy.deepcopy(nanos_first_points_hr),))
+                                        results.append(result_obj)
+                                        nanos_first_points_hr = []
+                                        nanos_first_points_hr_len = 0
+                                    elif nanos_first_points_min_len >= APPLY_ASYNC_WITH_N:
+                                        result_obj: AsyncResult = pool.apply_async(pendulum_info_min_process,
+                                                                                   args=(copy.deepcopy(nanos_first_points_min),
+                                                                                         lidar_restarts,))
+                                        results.append(result_obj)
+                                        nanos_first_points_min = []
+                                        nanos_first_points_min_len = 0
+                                completed_results.append(result)
+                            if value[0] == 1:
+                                completed_results.append(result)
+                    completed_results_set = set(completed_results)
+                    results = [item for item in results if item not in completed_results_set]
+                    completed_results = []
                     iteration_cnt += 1
                     if iteration_cnt % ITERATION_N == 0:
                         # 5.0-5.5 Hz (or readings/swing) no processing; half speed.
@@ -202,17 +221,25 @@ def run_scanner(lidar_restarts):
                         logging.info(f"{ITERATION_N / (time.perf_counter() - start_time):.1f} Hz")
                         start_time = time.perf_counter()
             except RPLidarException as e:
+                if e == 'Check bit not equal to 1':
+                    #lidar.reset()
+                    # Try just tossing this data and continuing on with the next data packet....
+                    continue
                 health = lidar.get_health()
                 logging.error(f"RPLidar Exception: {e}; Lidar Health: {health}")
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
+                pool.close()
+                pool.join()
                 return lidar_restarts+1
             except KeyboardInterrupt:
                 logging.error('Stoping...')
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
+                pool.close()
+                pool.join()
                 return lidar_restarts
 
 import configparser
@@ -221,6 +248,8 @@ from time import sleep
 
 nanos_first_points_min = []
 nanos_first_points_hr = []
+nanos_first_points_min_len = 0
+nanos_first_points_hr_len = 0
 
 # Copy config.ini.example to config.ini and change the WRITE_API_KEY to the one that you get from
 # https://thingspeak.mathworks.com/channels/??????/api_keys
@@ -237,9 +266,9 @@ if __name__ == '__main__':
     lidar_restarts: int = 0
     while True:
         consecutive_scans_last = None
-        sleep(5)
         # this needs to be a local and not a global because it needs to be passed to another process
         lidar_restarts = run_scanner(lidar_restarts)
+        sleep(2)
 
 # TODO:
 # 1) Need to test if this detects a stopped or bumped pendulum or does the R^2 negate it?
