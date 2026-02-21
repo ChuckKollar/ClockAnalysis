@@ -59,6 +59,16 @@ def things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swin
 import requests
 
 def thingsspeak_post(url):
+    """
+    Send data to the chart.
+    Sending a HTTP POST request to ThingSpeak to update channel data, the server returns a response text that
+    indicates the status of the request, specifically how many entries were successfully written.
+    Response Text:
+    - A Number (e.g., "1", "2", "345"). Meaning: If the post is successful, ThingSpeak returns the Entry ID of the
+      newly created data point.
+    - "0" Meaning: The update failed. This usually indicates an invalid API key, incorrect URL structure, or that
+      the rate limit (maximum one update per second) was exceeded.
+    """
     try:
         response = requests.post(url)
         if response.status_code == 200:
@@ -133,7 +143,7 @@ def pendulum_info_hr_process(nano_first_angles_orig):
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
            f"&field7={projected_daily_deviation}"
            )
-    logging.info(f"; projected_daily_deviation (hr): {projected_daily_deviation:.2f} (sec/day)")
+    logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.2f} (sec/day)")
     if r_squared < R_SQUARED_THRESHOLD:
         logging.info(f"Data discarded because R^2: {r_squared} < threshold of {R_SQUARED_THRESHOLD}; pendulum_period: {pendulum_period}; ")
         return 1, []
@@ -157,9 +167,8 @@ def run_scanner(lidar_restarts):
     posting to ThingSpeak.
 
     It is vitally important to spend as little time as possible in this loop. Even functions like 'len()' have
-    been removed in favor of keeping a running count of the items in a list. It should be possible to go for at
-    least 30 minutes or so without seeing a LIDAR error of any type. ALL work of any nature should be done in
-    subprocesses!
+    been removed in favor of keeping a running count of the items in a list. It should be possible to go for one
+    hour of more without seeing a RPLidarException. ALL work of any nature should be done in subprocesses!
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
     iteration_cnt: int = 0
