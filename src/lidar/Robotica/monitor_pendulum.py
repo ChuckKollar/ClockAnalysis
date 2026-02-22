@@ -174,7 +174,7 @@ def run_scanner(lidar_restarts):
     processes in the pool. The first step is to use the 'find_pendulum_process' to identify the part of the scan
     that represents the pendulum. It collects the left most point of each pendulum in an array and when enough
     points are gathered it sends the data to a process that does data cleaning, curve fitting, R^2 analysis, and
-    posting to ThingsSpeak.
+    posting to ThingSpeak.
 
     It is vitally important to spend as little time as possible in this loop or the LIDAR will generate errors. Even
     functions like 'len()' have been removed in favor of keeping a running count of the items in a list. ALL work of
