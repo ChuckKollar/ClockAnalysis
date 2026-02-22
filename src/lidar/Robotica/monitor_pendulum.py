@@ -179,8 +179,8 @@ def run_scanner(lidar_restarts):
     posting to ThingSpeak.
 
     It is vitally important to spend as little time as possible in this loop. Even functions like 'len()' have
-    been removed in favor of keeping a running count of the items in a list. It should be possible to go for two
-    hour of more without seeing a RPLidarException. ALL work of any nature should be done in subprocesses! The
+    been removed in favor of keeping a running count of the items in a list. It should be possible to go for three
+    hour or more without seeing a RPLidarException. ALL work of any nature should be done in subprocesses! The
     frequency will increase to about 13.7 Hz.
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
@@ -296,4 +296,3 @@ if __name__ == '__main__':
 # 1) Need to test if this detects a stopped or bumped pendulum or does the R^2 negate it?
 # 2) Need to determine if there is a way to detect what to set thresholds like that of
 # find_consecutive_proximal_points and remove_outliers_zscore.
-# 3) Need to find out why the LIDAR generates so many errors.
