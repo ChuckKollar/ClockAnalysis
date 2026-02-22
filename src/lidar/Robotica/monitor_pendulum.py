@@ -307,6 +307,7 @@ if __name__ == '__main__':
 # TODO:
 # 1) Need to test if this detects a stopped or bumped pendulum or does the R^2 negate it?
 # Stopping the pendulum for a moment results in a slightly larger R^2 (R Squared 0.9300)
-# but there is it is possible to detect an anomaly in the 'Pendulum Period' for that time.
+# but there is it is possible to detect an anomaly in the 'Pendulum Period', 'Time Keeping',
+# and 'Pendulum Swing' (all in the minute average graphs) for that time.
 # 2) Need to determine if there is a way to detect what to set thresholds like that of
 # find_consecutive_proximal_points and remove_outliers_zscore.
