@@ -15,7 +15,7 @@ is impacted by defects in the escape mechanism. Data is recorded on a
 [ThingSpeak Channel](https://thingspeak.mathworks.com/channels/3258476).
 
 Here is a movie
-<video src="[https://github.com/ChuckKollar/ClockAnalysis/blob/main/LIDAR_and_Pendulum.MOV]" controls title="[LIDAR and Pendulum]"></video>
+<video src="https://github.com/ChuckKollar/ClockAnalysis/blob/main/LIDAR_and_Pendulum.MOV" controls title="[LIDAR and Pendulum]"></video>
 that shows the lidar and pendulum in operation.
 
 ### Clock notes:
