@@ -60,7 +60,6 @@ import requests
 
 def thingsspeak_post(url):
     """
-    Send data to the chart.
     Sending a HTTP POST request to ThingSpeak to update channel data, the server returns a response text that
     indicates the status of the request, specifically how many entries were successfully written.
     Response Text:
@@ -76,13 +75,15 @@ def thingsspeak_post(url):
         response = requests.post(url)
         if response.status_code == 200:
             try:
-                response_text_int = int(response.text)
+                response_text_int = int(response.text.strip())
             except ValueError:
                 response_text_int = -1
             logging.info(f"ThingSpeak: Data sent OK: {response_text_int}")
             # There should be a more graceful way of handling this...
             if response_text_int == 0:
-                sleep(15)
+                # The update failed. Retry one time after a delay...
+                sleep(16)
+                logging.info(f"ThingSpeak: Repeating POST for: {url}")
                 requests.post(url)
         else:
             logging.error(f"ThingSpeak: Failed to send data. Status code: {response.status_code}, Response: {response.text}")
