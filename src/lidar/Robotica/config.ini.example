@@ -1,2 +1,11 @@
 [ThingSpeak]
 WRITE_API_KEY = APIKEY
+
+[RPLIDAR]
+PORT = /dev/cu.SLAB_USBtoUART
+BAUD_RATE = 256000
+MOTOR_PWM = 660
+SCAN_RADIUS_MM = 500.0
+
+[pendulum_info_min_process]
+R_SQUARED_THRESHOLD = 0.7

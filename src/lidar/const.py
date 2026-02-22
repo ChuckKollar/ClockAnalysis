@@ -7,17 +7,17 @@ logger.setLevel(logging.INFO) # Set the minimum level for this logger
 
 # Define the serial port name.
 # Be sure to adjust this to your specific system.
-
-_RPLIDAR_PORT_MACOS = '/dev/cu.SLAB_USBtoUART'
-_RPLIDAR_PORT_LINUX = '/dev/ttyUSB0'
-_RPLIDAR_PORT_WINDOWS = 'COM5'
-RPLIDAR_PORT = _RPLIDAR_PORT_MACOS
-
-BAUDRATE = 256000 # 115200 bps default
-
-SCAN_RADIUS_MM = 500.0
-
-DEFAULT_MOTOR_PWM = 660
+#
+# _RPLIDAR_PORT_MACOS = '/dev/cu.SLAB_USBtoUART'
+# _RPLIDAR_PORT_LINUX = '/dev/ttyUSB0'
+# _RPLIDAR_PORT_WINDOWS = 'COM5'
+# RPLIDAR_PORT = _RPLIDAR_PORT_MACOS
+#
+# BAUDRATE = 256000 # 115200 bps default
+#
+# DEFAULT_MOTOR_PWM = 660
+#
+# SCAN_RADIUS_MM = 500.0
 
 def _polar_to_cartesian(r, theta):
     """
@@ -36,10 +36,9 @@ def lidar_readings_to_cartesian(readings):
     """
     return [_polar_to_cartesian(x[2], math.radians(x[1])) for x in readings]
 
-def startup_lidar(logger):
-    lidar = RPLidar(RPLIDAR_PORT, BAUDRATE, logger=logger)
-    # DEFAULT_MOTOR_PWM = 660 (default)
-    #lidar.motor_speed = 330
+def startup_lidar(port, baud_rate, motor_rpm, rplidar_logger):
+    lidar = RPLidar(port, baud_rate, logger=rplidar_logger)
+    #lidar.motor_speed = motor_rpm
     lidar.clean_input()
 
     info = lidar.get_info()

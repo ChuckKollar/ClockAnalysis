@@ -60,7 +60,7 @@ import requests
 
 def thingsspeak_post(url):
     """
-    Sending a HTTP POST request to ThingSpeak to update channel data, the server returns a response text that
+    Sending an HTTP POST request to ThingSpeak to update channel data, the server returns a response text that
     indicates the status of the request, specifically how many entries were successfully written.
     Response Text:
     - A Number (e.g., "1", "2", "345"). Meaning: If the post is successful, ThingSpeak returns the Entry ID of the
@@ -99,7 +99,7 @@ def find_pendulum_process(scan_w_time):
     """
     global consecutive_scans_last, pendulum_found_failures
     nanos = scan_w_time[0]
-    consecutive_scans = find_consecutive_proximal_points(scan_w_time[1])
+    consecutive_scans = find_consecutive_proximal_points(scan_w_time[1], lidar_scan_radius_mm)
     if consecutive_scans_last is None:
         consecutive_scans_last = consecutive_scans
         return 0, nanos, []
@@ -113,7 +113,6 @@ from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
 from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
-R_SQUARED_THRESHOLD = 0.7 # .25 was not sensitive enough see fit_sine_with_fft_guess; Typically 0.99?? is seen in logs.
 def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     """
     This is used to find information about the pendulum using the time associated with the
@@ -130,12 +129,12 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     # the computed swing is how far left and right the pendulum would move according to the sine_function
     pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
-    if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < R_SQUARED_THRESHOLD:
+    if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < r_squared_threshold:
         logging.info(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
     # This doesn't say how to fix the data, just to determine that it was bad and not to use it.
     # See discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
-    if r_squared < R_SQUARED_THRESHOLD:
-        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {R_SQUARED_THRESHOLD};"
+    if r_squared < r_squared_threshold:
+        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold};"
                      f" pendulum_period: {pendulum_period}; ")
         thingsspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}&field8={r_squared}")
         # the empty array signifies that no data was found.
@@ -156,8 +155,8 @@ def pendulum_info_hr_process(nano_first_angles_orig):
            f"&field7={projected_daily_deviation}"
            )
     logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.2f} (sec/day)")
-    if r_squared < R_SQUARED_THRESHOLD:
-        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {R_SQUARED_THRESHOLD}; pendulum_period: {pendulum_period}; ")
+    if r_squared < r_squared_threshold:
+        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period}; ")
         return 1, []
     thingsspeak_post(url)
     return 1, nano_first_angles
@@ -166,7 +165,6 @@ from typing import List
 from multiprocessing import Pool
 from multiprocessing.pool import AsyncResult
 import copy
-import traceback
 
 APPLY_ASYNC_WITH_N = 13.2 * 60.0
 ITERATION_N = 60
@@ -182,7 +180,7 @@ def run_scanner(lidar_restarts):
     functions like 'len()' have been removed in favor of keeping a running count of the items in a list. ALL work of
     any nature should be done in subprocesses! In this manner, it should be possible to have the LIDAR scanner run for
     twelve hours or more without seeing a RPLidarException. This was developed on a 2 GHz Quad-Core Intern Core i5
-    Macbook Pro) with 16GB of memory.
+    (Macbook Pro) with 16GB of memory.
 
     As the hours go by the frequency will increase to about 13.7 Hz, and 14.5 Hz.
     """
@@ -192,7 +190,7 @@ def run_scanner(lidar_restarts):
     completed_results: List[AsyncResult] = []
     # https://docs.python.org/3/library/multiprocessing.html
     with Pool(processes=4) as pool:
-        lidar = startup_lidar(logging)
+        lidar = startup_lidar(lidar_port, lidar_baud_rate, lidar_motor_rpm, logging)
         start_time = time.perf_counter()
         while True:
             try:
@@ -246,10 +244,10 @@ def run_scanner(lidar_restarts):
                         logging.info(f"{ITERATION_N / (time.perf_counter() - start_time):.1f} Hz")
                         start_time = time.perf_counter()
             except RPLidarException as e:
-                if e == 'Check bit not equal to 1':
-                    #lidar.reset()
-                    # Try just tossing this data and continuing on with the next data packet....
-                    continue
+                # if e == 'Check bit not equal to 1':
+                #     #lidar.reset()
+                #     # Try just tossing this data and continuing on with the next data packet....
+                #     continue
                 health = lidar.get_health()
                 logging.error(f"RPLidar Exception: {e}; Lidar Health: {health}")
                 lidar.stop()
@@ -282,6 +280,17 @@ config = configparser.ConfigParser()
 ini_path = os.path.join(os.getcwd(), 'config.ini')
 config.read(ini_path)
 write_api_key = config.get('ThingSpeak', 'WRITE_API_KEY').strip('\'"')
+lidar_port = config.get('RPLIDAR', 'PORT').strip('\'"')
+try:
+    lidar_baud_rate: int = int(config.get('RPLIDAR', 'BAUD_RATE').strip('\'"'))
+    lidar_motor_rpm: int = int(config.get('RPLIDAR', 'MOTOR_PWM').strip('\'"'))
+    lidar_scan_radius_mm: float = float(config.get('RPLIDAR', 'SCAN_RADIUS_MM').strip('\'"'))
+    # R_SQUARED_THRESHOLD = 0.7 # .25 was not sensitive enough see fit_sine_with_fft_guess; Typically 0.99?? is seen in logs.
+    r_squared_threshold: float = float(config.get('pendulum_info_min_process', 'R_SQUARED_THRESHOLD').strip('\'"'))
+except ValueError:
+    print("Error reading config.ini; string to number conversion error")
+    logging.error("Error reading config.ini; string to number conversion error")
+    exit(1)
 
 # When a new process starts using the 'spawn' method, it re-imports the main script.
 # Any code at the global scope that is not protected by an if __name__ == '__main__': block will be executed during
@@ -297,5 +306,6 @@ if __name__ == '__main__':
 
 # TODO:
 # 1) Need to test if this detects a stopped or bumped pendulum or does the R^2 negate it?
+# Stopping the pendulum for a moment results in a slightly larger R^2 (R Squared 0.9300)
 # 2) Need to determine if there is a way to detect what to set thresholds like that of
 # find_consecutive_proximal_points and remove_outliers_zscore.

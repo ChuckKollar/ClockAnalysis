@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List, Tuple
-from lidar.const import lidar_readings_to_cartesian, SCAN_RADIUS_MM
+from lidar.const import lidar_readings_to_cartesian
 import math
 import logging
 
@@ -22,7 +22,7 @@ def angular_distance_degrees(angle1, angle2):
     difference = abs(angle1 - angle2)
 
     # Use modulo 360 to handle angles greater than 360 or negative
-    # This gives the difference in the range [0, 360)
+    # This gives the difference in the range [0, 360]
     wrapped_difference = difference % 360
 
     # The shortest distance is the smaller of the wrapped difference
@@ -31,14 +31,19 @@ def angular_distance_degrees(angle1, angle2):
 
     return distance
 
-def find_consecutive_proximal_points(scan: List[Tuple[int,float, float]], threshold: float=25.0, min_segment_len=4) -> List[
-    List[Tuple[float, float]]]:
+def find_consecutive_proximal_points(scan: List[Tuple[int, float, float]],
+                                     scan_radius_mm: float,
+                                     threshold: float=25.0,
+                                     min_segment_len=4)\
+        -> List[List[Tuple[float, float]]]:
     """
     Finds groups of consecutive points that are within a distance threshold
     of the immediately preceding point.
 
     scan: [(quality, angle, radius).... ]
     where 'angle' is in degrees
+    scan_radius_mm is in milli-meters
+    where 'scan_radius_mm' is the radius within which lidar points are kept
 
     Args:
         points: A list of (x, y) tuples.
@@ -48,7 +53,7 @@ def find_consecutive_proximal_points(scan: List[Tuple[int,float, float]], thresh
         A list of lists, where each inner list is a sequence of consecutive
         proximal points.
     """
-    scan = [(x[0], 360.0 - x[1], x[2]) for x in scan if x[2] < SCAN_RADIUS_MM]
+    scan = [(x[0], 360.0 - x[1], x[2]) for x in scan if x[2] < scan_radius_mm]
     scan = sorted(scan, key=lambda x: x[1])
     points = lidar_readings_to_cartesian(scan)
     if not points or len(points) < 2:
@@ -122,19 +127,18 @@ def find_dissimilar_scans(scan_a: List, scan_b: List, threshold: float=2.5):
 if __name__ == "__main__":
 # Example Usage:
     points_list = [
-        (1, 1), (1.5, 1.5), (2, 2),  # proximal group 1
-        (6,6),
-        (10, 10), (10.1, 10.1),  # proximal group 2
-        (1, 1),  # single point, not a group
-        (1.1, 1.1), (1.2, 1.2), (5, 5)  # proximal group 3 (first two), then a break
+        (0, 1, 1), (1, 1.5, 1.5), (2, 2, 2),  # proximal group 1
+        (3, 6,6),
+        (4, 10, 10), (5, 10.1, 10.1),  # proximal group 2
+        (6, 1, 1),  # single point, not a group
+        (7, 1.1, 1.1), (8, 1.2, 1.2), (9, 5, 5)  # proximal group 3 (first two), then a break
     ]
     distance_threshold = 1.0
 
-    proximal_groups, jfl = find_consecutive_proximal_points(points_list, distance_threshold)
+    proximal_groups = find_consecutive_proximal_points(points_list, 500.0, distance_threshold)
 
     print(f"Points List: {points_list}")
     print(f"Distance Threshold: {distance_threshold}")
     print("Consecutive proximal groups found:")
-    print(f"Join first and last: {jfl}")
     for group in proximal_groups:
         print(group)
