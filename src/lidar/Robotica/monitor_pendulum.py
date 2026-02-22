@@ -67,12 +67,23 @@ def thingsspeak_post(url):
     - A Number (e.g., "1", "2", "345"). Meaning: If the post is successful, ThingSpeak returns the Entry ID of the
       newly created data point.
     - "0" Meaning: The update failed. This usually indicates an invalid API key, incorrect URL structure, or that
-      the rate limit (maximum one update per second) was exceeded.
+      the rate limit (maximum one update per second) was exceeded. Free accounts restricted to one update per channel
+      every 15 seconds (4 updates/minute).
+      In this case we will sleep and retry in 15 seconds. This will take a process out of commission for that time,
+      but by adding an extral process this should not be an issue.
     """
     try:
         response = requests.post(url)
         if response.status_code == 200:
-            logging.info(f"ThingSpeak: Data sent OK: {response.text}")
+            try:
+                response_text_int = int(response.text)
+            except ValueError:
+                response_text_int = -1
+            logging.info(f"ThingSpeak: Data sent OK: {response_text_int}")
+            # There should be a more graceful way of handling this...
+            if response_text_int == 0:
+                sleep(15)
+                requests.post(url)
         else:
             logging.error(f"ThingSpeak: Failed to send data. Status code: {response.status_code}, Response: {response.text}")
 
@@ -167,8 +178,9 @@ def run_scanner(lidar_restarts):
     posting to ThingSpeak.
 
     It is vitally important to spend as little time as possible in this loop. Even functions like 'len()' have
-    been removed in favor of keeping a running count of the items in a list. It should be possible to go for one
-    hour of more without seeing a RPLidarException. ALL work of any nature should be done in subprocesses!
+    been removed in favor of keeping a running count of the items in a list. It should be possible to go for two
+    hour of more without seeing a RPLidarException. ALL work of any nature should be done in subprocesses! The
+    frequency will increase to about 13.7 Hz.
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
     iteration_cnt: int = 0
