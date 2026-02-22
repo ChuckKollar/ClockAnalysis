@@ -175,13 +175,16 @@ def run_scanner(lidar_restarts):
     This function simply grabs data from the LIDAR as fast as it can and sends data for analysis to one of the
     processes in the pool. The first step is to use the 'find_pendulum_process' to identify the part of the scan
     that represents the pendulum. It collects the left most point of each pendulum in an array and when enough
-    points are gathered it sends the data to a process that does data cleaning, curve fitting, R^2 analysis and
-    posting to ThingSpeak.
+    points are gathered it sends the data to a process that does data cleaning, curve fitting, R^2 analysis, and
+    posting to ThingsSpeak.
 
-    It is vitally important to spend as little time as possible in this loop. Even functions like 'len()' have
-    been removed in favor of keeping a running count of the items in a list. It should be possible to go for three
-    hour or more without seeing a RPLidarException. ALL work of any nature should be done in subprocesses! The
-    frequency will increase to about 13.7 Hz.
+    It is vitally important to spend as little time as possible in this loop or the LIDAR will generate errors. Even
+    functions like 'len()' have been removed in favor of keeping a running count of the items in a list. ALL work of
+    any nature should be done in subprocesses! In this manner, it should be possible to have the LIDAR scanner run for
+    twelve hours or more without seeing a RPLidarException. This was developed on a 2 GHz Quad-Core Intern Core i5
+    Macbook Pro) with 16GB of memory.
+
+    As the hours go by the frequency will increase to about 13.7 Hz, and 14.5 Hz.
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
     iteration_cnt: int = 0
