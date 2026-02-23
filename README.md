@@ -15,8 +15,9 @@ is impacted by defects in the escape mechanism. Data is recorded on a
 [ThingSpeak Channel](https://thingspeak.mathworks.com/channels/3258476).
 
 Here is a movie
-<video src="https://github.com/ChuckKollar/ClockAnalysis/blob/main/src/lidarLIDAR_and_Pendulum.mp4" controls title="[LIDAR and Pendulum]"></video>
+![LIDAR and Pendulum](https://github.com/user-attachments/assets/29cb6426-cc27-4594-9ca7-16cb766696f2)
 that shows the lidar and pendulum in operation.
+
 
 ### Clock notes:
 - A paper on [Remote Monitoring and Control of a Turret Clock](https://bhi.co.uk/wp-content/uploads/2022/07/05-HJMay22-AOTM.pdf). Using [ThingSpeak](https://thingspeak.mathworks.com/) to monitor a turret clock (see Remote Monitoring paper) [Childrey clock](https://thingspeak.mathworks.com/channels/1409501), [Bucklebury clock](https://thingspeak.com/channels/1289670)
