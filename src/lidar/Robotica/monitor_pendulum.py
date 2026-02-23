@@ -318,11 +318,9 @@ if __name__ == '__main__':
 # Stopping the pendulum for a moment results in a slightly larger R^2 (R Squared 0.9300)
 # but there is it is possible to detect an anomaly in the 'Pendulum Period', 'Time Keeping',
 # and 'Pendulum Swing' (all in the minute average graphs) for that time.
-# 2) Need to determine if there is a way to detect what to set thresholds like that of
+# 2) Need to determine if there is a way to automatically set best thresholds like that of
 # find_consecutive_proximal_points, remove_outliers_zscore, and APPLY_ASYNC_WITH_N.
-# 3) pendulum_found_failures should be expressed as a percentage of LIDAR scans in a period.
-# In other words, it should be changed to a pendulum_found_failure_percentage.
-# 4) Why are there angles > 360.0 and 3 min between updates???
+# 3) Why are there angles > 360.0 and 3 min between updates???
 # 2026-02-23 09:31:43,757 - INFO - root - ThingSpeak: Data sent OK: 2513
 # 2026-02-23 09:34:49,756 - INFO - root - outliers: [(302514.246668439, 404.74745646394194, 1.4349167116675894), (302427.111368239, 468.41218321847646, -9.070645649589546), ...
 # 2026-02-23 09:34:49,756 - INFO - root - Data discarded because R^2: 0.18733608583468397 < threshold of 0.7; pendulum_period: 1.9997644948513849;
