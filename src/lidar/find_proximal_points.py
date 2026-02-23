@@ -45,10 +45,6 @@ def find_consecutive_proximal_points(scan: List[Tuple[int, float, float]],
     scan_radius_mm is in milli-meters
     where 'scan_radius_mm' is the radius within which lidar points are kept
 
-    Args:
-        points: A list of (x, y) tuples.
-        threshold: The maximum distance for points to be considered proximal.
-
     Returns:
         A list of lists, where each inner list is a sequence of consecutive
         proximal points.
@@ -79,12 +75,12 @@ def find_consecutive_proximal_points(scan: List[Tuple[int, float, float]],
     # The start and end indices of these segments represent the proximal sequences
     segments = np.split(points_arr, break_indices)
     # scans = np.split(scan_arr, break_indices)
-    # indicies = np.split(np.array(range(0, len(points))), break_indices)
+    # indices = np.split(np.array(range(0, len(points))), break_indices)
 
     # Filter out segments that have only one point, as they can't be "consecutive" proximal
     consecutive_segments = [segment.tolist() for segment in segments if len(segment) >= min_segment_len]
     # consecutive_scans = [scan.tolist() for scan in scans if len(scan) >= min_segment_len]
-    # consecutive_indices = [index.tolist() for index in indicies if len(index) >= min_segment_len]
+    # consecutive_indices = [index.tolist() for index in indices if len(index) >= min_segment_len]
 
     # If the first point is close to the last point then join them assuming that they are the same froup...
     distance_first_last = math.dist(points[0], points[-1])

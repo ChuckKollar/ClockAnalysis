@@ -8,4 +8,4 @@ MOTOR_PWM = 660
 SCAN_RADIUS_MM = 500.0
 
 [pendulum_info_min_process]
-R_SQUARED_THRESHOLD = 0.7
+R_SQUARED_THRESHOLD = 0.6

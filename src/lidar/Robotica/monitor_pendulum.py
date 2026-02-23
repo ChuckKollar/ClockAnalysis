@@ -24,8 +24,6 @@ logging.basicConfig(
 # Use an interactive backend (e.g., 'Qt5Agg')
 # $ pip install requests
 
-pendulum_found_failures: int = 0
-
 from datetime import datetime
 
 def nanos_str(nanos):
@@ -38,20 +36,20 @@ def nanos_str(nanos):
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
 def thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                     pendulum_swing_computed, lidar_restarts, r_squared):
+                     pendulum_swing_computed, pendulum_found_failure_percentage, lidar_restarts, r_squared):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
-           f"&field1={pendulum_period}&field2={projected_daily_deviation}&field3={pendulum_swing}"
-           f"&field4={pendulum_swing_computed}&field5={pendulum_found_failures}"
-           f"&field6={lidar_restarts}&field8={r_squared}"
+           f"&field1={pendulum_period:.4f}&field2={projected_daily_deviation:.4f}&field3={pendulum_swing:.1f}"
+           f"&field4={pendulum_swing_computed:.1f}&field5={pendulum_found_failure_percentage:.1f}"
+           f"&field6={lidar_restarts}&field8={r_squared:.4f}"
            )
-    logging.info(f"pendulum_period: {pendulum_period:.2f} (sec/cycle)"
-                 f"; projected_daily_deviation: {projected_daily_deviation:.2f} (sec/day)"
-                 f"; pendulum_swing: {pendulum_swing:.2f} (mm)"
-                 f"; pendulum_swing_computed: {pendulum_swing_computed:.2f} (mm)"
-                 f"; pendulum_found_failures: {pendulum_found_failures}"
+    logging.info(f"pendulum_period: {pendulum_period:.4f} (sec/cycle)"
+                 f"; projected_daily_deviation: {projected_daily_deviation:.4f} (sec/day)"
+                 f"; pendulum_swing: {pendulum_swing:.1f} (mm)"
+                 f"; pendulum_swing_computed: {pendulum_swing_computed:.1f} (mm)"
+                 f"; pendulum_found_failure_percentage: {pendulum_found_failure_percentage:.1f}"
                  f"; lidar_restarts: {lidar_restarts}"
                  f"; R Squared {r_squared:.4f}")
     return url
@@ -96,6 +94,7 @@ def thingspeak_post(url):
         logging.error(f"ThingSpeak: Connection failed: {e}")
 
 consecutive_scans_last = None
+pendulum_found_failures: int = 0
 def find_pendulum_process(scan_w_time):
     """
     This function is used to find the Pendulum (only moving thing) in the LIDAR scan.
@@ -122,6 +121,7 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
     """
+    global pendulum_found_failures
     # Outliers are harder to spot on the depth value (2) rather than the lateral value (1)
     # because the swing is greater than the front to back thickness of the pendulum.
     nano_first_angles, outliers = remove_outliers_zscore(nano_first_angles_orig, 1)
@@ -135,16 +135,22 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     # There are outliers here so we need to understand what they are and later where they are coming from...
     if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < r_squared_threshold:
         logging.info(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
-    # This doesn't say how to fix the data, just to determine that it was bad and not to use it.
-    # See discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
+    pendulum_found_failure_percentage = \
+        (pendulum_found_failures / (pendulum_found_failures + len(nano_first_angles_orig))) * 100.0
+    pendulum_found_failures = 0
+    # This doesn't say how to fix the data, it just says that it is bad and not to use it.
+    # See the discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
     if r_squared < r_squared_threshold:
-        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold};"
-                     f" pendulum_period: {pendulum_period}; ")
-        thingspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}&field8={r_squared}")
+        logging.info(f"Data discarded because R^2: {r_squared:.4f} < threshold of {r_squared_threshold};"
+                     f" pendulum_period: {pendulum_period:.4f}; ")
+        thingspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}"
+                        f"&field8={r_squared:.4f}"
+                        f"&field5={pendulum_found_failure_percentage:.1f}"
+                        )
         # the empty array signifies that no data was found.
         return 1, []
     thingspeak_post(thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                                     pendulum_swing_computed, lidar_restarts, r_squared))
+                                     pendulum_swing_computed, pendulum_found_failure_percentage, lidar_restarts, r_squared))
     return 1, nano_first_angles
 
 def pendulum_info_hr_process(nano_first_angles_orig):
@@ -182,11 +188,10 @@ def run_scanner(lidar_restarts):
 
     It is vitally important to spend as little time as possible in this loop or the LIDAR will generate errors. Even
     functions like 'len()' have been removed in favor of keeping a running count of the items in a list. ALL work of
-    any nature should be done in subprocesses! In this manner, it should be possible to have the LIDAR scanner run for
-    twelve hours or more without seeing a RPLidarException. This was developed on a 2 GHz Quad-Core Intern Core i5
-    (Macbook Pro) with 16GB of memory.
+    any nature should be done in subprocesses! In this manner, the LIDAR scanner should run for a day or more without
+    seeing a RPLidarException. This was developed on a 2 GHz Quad-Core Intern Core i5 (Macbook Pro) with 16GB of memory.
 
-    As the hours go by the frequency will increase to about 13.7 Hz, and 14.5 Hz.
+    As the hours go by the frequency will increase to about 13.7 Hz, and 14.7 Hz.
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
     iteration_cnt: int = 0
@@ -316,4 +321,9 @@ if __name__ == '__main__':
 # 2) Need to determine if there is a way to detect what to set thresholds like that of
 # find_consecutive_proximal_points, remove_outliers_zscore, and APPLY_ASYNC_WITH_N.
 # 3) pendulum_found_failures should be expressed as a percentage of LIDAR scans in a period.
-# In other words, it should be changed to a pendulum_found_failure_rate.
+# In other words, it should be changed to a pendulum_found_failure_percentage.
+# 4) Why are there angles > 360.0 and 3 min between updates???
+# 2026-02-23 09:31:43,757 - INFO - root - ThingSpeak: Data sent OK: 2513
+# 2026-02-23 09:34:49,756 - INFO - root - outliers: [(302514.246668439, 404.74745646394194, 1.4349167116675894), (302427.111368239, 468.41218321847646, -9.070645649589546), ...
+# 2026-02-23 09:34:49,756 - INFO - root - Data discarded because R^2: 0.18733608583468397 < threshold of 0.7; pendulum_period: 1.9997644948513849;
+#
