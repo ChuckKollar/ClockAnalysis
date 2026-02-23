@@ -162,9 +162,9 @@ def pendulum_info_hr_process(nano_first_angles_orig):
     pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_angles)
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
-           f"&field7={projected_daily_deviation}"
+           f"&field7={projected_daily_deviation:.4f}"
            )
-    logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.2f} (sec/day)")
+    logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.4f} (sec/day)")
     if r_squared < r_squared_threshold:
         logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period}; ")
         return 1, []
