@@ -37,8 +37,8 @@ def nanos_str(nanos):
 # https://thingspeak.mathworks.com/channels/3258476/private_show
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
-def things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                       pendulum_swing_computed, lidar_restarts, r_squared):
+def thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
+                     pendulum_swing_computed, lidar_restarts, r_squared):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
@@ -58,7 +58,7 @@ def things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swin
 
 import requests
 
-def thingsspeak_post(url):
+def thingspeak_post(url):
     """
     Sending an HTTP POST request to ThingSpeak to update channel data, the server returns a response text that
     indicates the status of the request, specifically how many entries were successfully written.
@@ -136,11 +136,11 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     if r_squared < r_squared_threshold:
         logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold};"
                      f" pendulum_period: {pendulum_period}; ")
-        thingsspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}&field8={r_squared}")
+        thingspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}&field8={r_squared}")
         # the empty array signifies that no data was found.
         return 1, []
-    thingsspeak_post(things_speak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                                        pendulum_swing_computed, lidar_restarts, r_squared))
+    thingspeak_post(thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
+                                     pendulum_swing_computed, lidar_restarts, r_squared))
     return 1, nano_first_angles
 
 def pendulum_info_hr_process(nano_first_angles_orig):
@@ -158,7 +158,7 @@ def pendulum_info_hr_process(nano_first_angles_orig):
     if r_squared < r_squared_threshold:
         logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period}; ")
         return 1, []
-    thingsspeak_post(url)
+    thingspeak_post(url)
     return 1, nano_first_angles
 
 from typing import List
@@ -310,4 +310,6 @@ if __name__ == '__main__':
 # but there is it is possible to detect an anomaly in the 'Pendulum Period', 'Time Keeping',
 # and 'Pendulum Swing' (all in the minute average graphs) for that time.
 # 2) Need to determine if there is a way to detect what to set thresholds like that of
-# find_consecutive_proximal_points and remove_outliers_zscore.
+# find_consecutive_proximal_points, remove_outliers_zscore, and APPLY_ASYNC_WITH_N.
+# 3) pendulum_found_failures should be expressed as a percentage of LIDAR scans in a period.
+# In other words, it should be changed to a pendulum_found_failure_rate.
