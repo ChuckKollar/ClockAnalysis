@@ -70,6 +70,10 @@ def thingspeak_post(url):
       every 15 seconds (4 updates/minute).
       In this case we will sleep and retry in 15 seconds. This will take a process out of commission for that time,
       but by adding an extral process this should not be an issue.
+
+    NOTE: With ThingSpeak you can send a maximum of 3 million messages per year (roughly 8,200 messages/day)
+    total across all channels. There is a maximum of 4 channels. Each channel is limited to 8 fields of data.
+    There is a maximum of 1 message every 15 seconds.
     """
     try:
         response = requests.post(url)
