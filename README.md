@@ -47,3 +47,6 @@ that shows the lidar and pendulum in operation.
 - [localization_algorithms module](https://opensoundscape.org/en/latest/source/opensoundscape.localization.html#module-opensoundscape.localization.localization_algorithms) for two microphones
 - [ReSpeaker Mic Array v3.0](https://wiki.seeedstudio.com/respeaker_mic_array_v3.0/)
 - [ReSpeaker USB Mic Array BUY](https://www.seeedstudio.com/ReSpeaker-USB-Mic-Array-p-4247.html)
+
+### General Programming notes:
+- [Python Process-based parallelism](https://docs.python.org/3/library/multiprocessing.html#)

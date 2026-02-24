@@ -326,4 +326,5 @@ if __name__ == '__main__':
 # 2026-02-23 09:31:43,757 - INFO - root - ThingSpeak: Data sent OK: 2513
 # 2026-02-23 09:34:49,756 - INFO - root - outliers: [(302514.246668439, 404.74745646394194, 1.4349167116675894), (302427.111368239, 468.41218321847646, -9.070645649589546), ...
 # 2026-02-23 09:34:49,756 - INFO - root - Data discarded because R^2: 0.18733608583468397 < threshold of 0.7; pendulum_period: 1.9997644948513849;
-#
+# 4) Replace the Pendulum Swing Computed graph with the LIDAR frequency on a minute basis via a subprocess and
+# remove it from the log files.
