@@ -41,12 +41,12 @@ def thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
-           f"&field1={pendulum_period:.4f}&field2={projected_daily_deviation:.4f}&field3={pendulum_swing:.1f}"
+           f"&field1={pendulum_period:.3f}&field2={projected_daily_deviation:.3f}&field3={pendulum_swing:.1f}"
            f"&field4={pendulum_swing_computed:.1f}&field5={pendulum_found_failure_percentage:.1f}"
            f"&field6={lidar_restarts}&field8={r_squared:.4f}"
            )
-    logging.info(f"pendulum_period: {pendulum_period:.4f} (sec/cycle)"
-                 f"; projected_daily_deviation: {projected_daily_deviation:.4f} (sec/day)"
+    logging.info(f"pendulum_period: {pendulum_period:.3f} (sec/cycle)"
+                 f"; projected_daily_deviation: {projected_daily_deviation:.3f} (sec/day)"
                  f"; pendulum_swing: {pendulum_swing:.1f} (mm)"
                  f"; pendulum_swing_computed: {pendulum_swing_computed:.1f} (mm)"
                  f"; pendulum_found_failure_percentage: {pendulum_found_failure_percentage:.1f}"
@@ -142,7 +142,7 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts):
     # See the discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
     if r_squared < r_squared_threshold:
         logging.info(f"Data discarded because R^2: {r_squared:.4f} < threshold of {r_squared_threshold};"
-                     f" pendulum_period: {pendulum_period:.4f}; ")
+                     f" pendulum_period: {pendulum_period:.3f}; ")
         thingspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}"
                         f"&field8={r_squared:.4f}"
                         f"&field5={pendulum_found_failure_percentage:.1f}"
@@ -162,9 +162,9 @@ def pendulum_info_hr_process(nano_first_angles_orig):
     pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_angles)
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
-           f"&field7={projected_daily_deviation:.4f}"
+           f"&field7={projected_daily_deviation:.3f}"
            )
-    logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.4f} (sec/day)")
+    logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.3f} (sec/day)")
     if r_squared < r_squared_threshold:
         logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period}; ")
         return 1, []
@@ -204,6 +204,8 @@ def run_scanner(lidar_restarts):
         while True:
             try:
                 for scan in lidar.iter_scans(): # (quality, angle, distance)
+                    # NOTE: While time.perf_counter() should be accurate to the submicrosecond (10^-6) level, when
+                    # scan_with_time is printed we use millisecond accurate (10^-3).
                     scan_with_time = (time.perf_counter(), scan)
                     # Submit a single task to the pool, non-blocking
                     result_obj: AsyncResult = pool.apply_async(find_pendulum_process, args=(scan_with_time,))
