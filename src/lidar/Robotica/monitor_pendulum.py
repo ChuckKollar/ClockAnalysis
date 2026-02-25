@@ -108,8 +108,11 @@ def find_pendulum_process(scan_w_time):
         return 0, nanos, []
     scan_data_diff = find_dissimilar_scans(consecutive_scans_last, consecutive_scans)
     consecutive_scans_last = consecutive_scans
-    if len(scan_data_diff) == 1:
+    scan_data_diff_len = len(scan_data_diff)
+    if scan_data_diff_len == 1:
         pendulum_found_failures += 1
+    else:
+        logging.info(f"Found pendulum points: {scan_data_diff_len}")
     return 0, nanos, scan_data_diff
 
 from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
@@ -261,26 +264,17 @@ def run_scanner(lidar_restarts):
                     #     logging.info(f"{ITERATION_N / (time.perf_counter() - start_time):.1f} Hz")
                     #     start_time = time.perf_counter()
             except RPLidarException as e:
-                # if e == 'Check bit not equal to 1':
-                #     #lidar.reset()
-                #     # Try just tossing this data and continuing on with the next data packet....
-                #     continue
                 health = lidar.get_health()
                 logging.error(f"RPLidar Exception: {e}; Lidar Health: {health}")
+            except KeyboardInterrupt:
+                logging.fatal('Stoping...')
+            finally:
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
                 pool.close()
                 pool.join()
                 return lidar_restarts+1
-            except KeyboardInterrupt:
-                logging.fatal('Stoping...')
-                lidar.stop()
-                lidar.stop_motor()
-                lidar.disconnect()
-                pool.close()
-                pool.join()
-                return lidar_restarts
 
 import configparser
 import os

@@ -1,3 +1,22 @@
+## Implementation
+
+
+
+### LIDAR Accuracy
+
+The Slamtec RPLIDAR A2M12 LIDAR unit used here can be purchased on [Amazon](https://www.amazon.com/dp/B0B46MG65X)
+(Feb 2026) for a bit over $200US. From the [Data Sheet](https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf)
+it is a 360 Degree 2D Laser Range Scanner. That is, distances from the unit are measured at points in
+a circle around the device. The number of points returned per revolution is dependent on the programmable
+revolution rate which here comes to about fifteen revolutions per sec (Hz). The number of points returned
+along that circle are also determined by the speed of the revolution, but here it's on the order of 250
+points per revolution. From the [Key Parameters Sheet](https://www.slamtec.com/en/lidar/a2spec) the
+accuracy is given as 1% of the range ≤3 m. So it the range is 1 m the accruacy should be ≤1 mm.
+To compensate for the small number of points that would be reflected from the pendulum in one scan (typically 21-28),
+multiple scans are made. In one minute 14*60 or 620 scans can be made. After about 400 scans the pendulum size
+(spread between left and right points) does not change.
+
+
 ## Documents
 
 This [GitHub repo](https://github.com/ChuckKollar/ClockAnalysis.git) contains code (fragments of trials in some cases) used to understand how
@@ -19,7 +38,7 @@ Here is a movie
 that shows the lidar and pendulum in operation.
 
 
-### Clock notes:
+### Clock Notes:
 - A paper on [Remote Monitoring and Control of a Turret Clock](https://bhi.co.uk/wp-content/uploads/2022/07/05-HJMay22-AOTM.pdf). Using [ThingSpeak](https://thingspeak.mathworks.com/) to monitor a turret clock (see Remote Monitoring paper) [Childrey clock](https://thingspeak.mathworks.com/channels/1409501), [Bucklebury clock](https://thingspeak.com/channels/1289670)
 - Turret clock escapements: [Double three-legged gravity](https://clock.trin.cam.ac.uk/main.php?menu_option=escapement), [Pinwheel](https://www.clockguy.com/SiteRelated/SiteReferencePages/PinwheelEscapement.html), [Anchor](https://en.wikipedia.org/wiki/Anchor_escapement), [Denison/Westminster](https://www.pendulumpublications.com/latest-post/edmond-beckett-denison-and-the-westminster-clock), [Verge](https://en.wikipedia.org/wiki/Verge_escapement), [Grasshopper](https://en.wikipedia.org/wiki/Grasshopper_escapement)
 - A paper on [Turret clock conservation](https://www.churchofengland.org/sites/default/files/2024-05/clocks_may2024.pdf)
@@ -32,8 +51,9 @@ that shows the lidar and pendulum in operation.
 - [NAWCC: Tower and Street Clock Chapter #134](http://www.tscchapter134.org/)
 - [Clock Pendulum with Air Drag Damping](https://moorepants.github.io/resonance/04-2020/clock_pendulum_with_damping.html)
 
-### Lidar notes:
-- [Slamtec RPLIDAR A2 Introduction and Data Sheet](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf&ved=2ahUKEwjs5YznoKySAxUAKlkFHdNlOBIQFnoECB8QAQ&usg=AOvVaw1uv98FNMpZ3x3v6YhKvcae)
+### Lidar Notes:
+- [Slamtec RPLIDAR A2 Introduction and Data Sheet](https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf)
+- [Slamtec RPLIDAR A2 Key Parameters](https://www.slamtec.com/en/lidar/a2spec)
 - [Slamtec RPLIDAR SDK](https://github.com/Slamtec/rplidar_sdk)
 - [Documents, SDK & Firmware](https://www.slamtec.com/en/support#rplidar-a-series)
 - [Robotica RPLidar](https://github.com/Roboticia/RPLidar/tree/master) python library
@@ -42,12 +62,12 @@ that shows the lidar and pendulum in operation.
 - [Slamtec RPLIDAR ROS package](https://github.com/slamtec/rplidar_ros)
 - 
 
-### Audio notes:
+### Audio Notes:
 - [Autocoleation](https://dsp.stackexchange.com/questions/386/autocorrelation-in-audio-analysis)
 - [OpenSoundscape](https://opensoundscape.org/en/latest/)
 - [localization_algorithms module](https://opensoundscape.org/en/latest/source/opensoundscape.localization.html#module-opensoundscape.localization.localization_algorithms) for two microphones
 - [ReSpeaker Mic Array v3.0](https://wiki.seeedstudio.com/respeaker_mic_array_v3.0/)
 - [ReSpeaker USB Mic Array BUY](https://www.seeedstudio.com/ReSpeaker-USB-Mic-Array-p-4247.html)
 
-### General Programming notes:
+### Programming Notes:
 - [Python Process-based parallelism](https://docs.python.org/3/library/multiprocessing.html#)
