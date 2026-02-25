@@ -41,11 +41,11 @@ def thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
-           f"&field1={pendulum_period:.3f}&field2={projected_daily_deviation:.3f}&field3={pendulum_swing:.1f}"
+           f"&field1={pendulum_period:.4f}&field2={projected_daily_deviation:.3f}&field3={pendulum_swing:.1f}"
            f"&field4={lidar_readings_hz:.1f}&field5={pendulum_found_failure_percentage:.1f}"
            f"&field6={lidar_restarts}&field8={r_squared:.4f}"
            )
-    logging.info(f"pendulum_period: {pendulum_period:.3f} (sec/cycle)"
+    logging.info(f"pendulum_period: {pendulum_period:.4f} (sec/cycle)"
                  f"; projected_daily_deviation: {projected_daily_deviation:.3f} (sec/day)"
                  f"; pendulum_swing: {pendulum_swing:.1f} (mm)"
                  f"; lidar readings: {lidar_readings_hz:.1f} (Hz)"
@@ -143,7 +143,7 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing
     # See the discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
     if r_squared < r_squared_threshold:
         logging.info(f"Data discarded because R^2: {r_squared:.4f} < threshold of {r_squared_threshold}"
-                     f"; pendulum_period: {pendulum_period:.3f} (sec/cycle)"
+                     f"; pendulum_period: {pendulum_period:.4f} (sec/cycle)"
                      f"; lidar readings: {lidar_readings_hz:.1f} (Hz)")
         thingspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}"
                         f"&field4={lidar_readings_hz:.1f}"
@@ -169,7 +169,7 @@ def pendulum_info_hr_process(nano_first_angles_orig):
            )
     logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.3f} (sec/day)")
     if r_squared < r_squared_threshold:
-        logging.warning(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period}; ")
+        logging.warning(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period:.4f}; ")
         return 1, []
     thingspeak_post(url)
     return 1, nano_first_angles

@@ -30,6 +30,7 @@ that shows the lidar and pendulum in operation.
 - [Looking after a Tower Clock](https://simon.kershaw.org.uk/tower-clock/)
 - [Windless Turret Clock Oil](https://www.cousinsuk.com/product/windles-turret-clock-oil)
 - [NAWCC: Tower and Street Clock Chapter #134](http://www.tscchapter134.org/)
+- [Clock Pendulum with Air Drag Damping](https://moorepants.github.io/resonance/04-2020/clock_pendulum_with_damping.html)
 
 ### Lidar notes:
 - [Slamtec RPLIDAR A2 Introduction and Data Sheet](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf&ved=2ahUKEwjs5YznoKySAxUAKlkFHdNlOBIQFnoECB8QAQ&usg=AOvVaw1uv98FNMpZ3x3v6YhKvcae)
