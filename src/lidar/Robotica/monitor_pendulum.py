@@ -8,7 +8,7 @@ import time
 
 # Configure the root logger
 logging.basicConfig(
-    level=logging.INFO, # Set the minimum log level to capture
+    level=logging.WARNING, # Set the minimum log level to capture
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', # Customize the log message format
     filename='../logs/monitor_pendulum.log', # Log to a file (optional, defaults to console)
     filemode='a' # Append to the log file (default is 'a', 'w' overwrites)
@@ -134,7 +134,7 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing
     pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
     if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < r_squared_threshold:
-        logging.info(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
+        logging.warning(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
     lidar_readings = pendulum_found_failures + len(nano_first_angles_orig)
     lidar_readings_hz = lidar_readings / processing_time
     pendulum_found_failure_percentage = (pendulum_found_failures / lidar_readings) * 100.0
@@ -169,7 +169,7 @@ def pendulum_info_hr_process(nano_first_angles_orig):
            )
     logging.info(f"projected_daily_deviation (hr): {projected_daily_deviation:.3f} (sec/day)")
     if r_squared < r_squared_threshold:
-        logging.info(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period}; ")
+        logging.warning(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period}; ")
         return 1, []
     thingspeak_post(url)
     return 1, nano_first_angles
@@ -274,7 +274,7 @@ def run_scanner(lidar_restarts):
                 pool.join()
                 return lidar_restarts+1
             except KeyboardInterrupt:
-                logging.error('Stoping...')
+                logging.fatal('Stoping...')
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
@@ -306,7 +306,7 @@ try:
     r_squared_threshold: float = float(config.get('pendulum_info_min_process', 'R_SQUARED_THRESHOLD').strip('\'"'))
 except ValueError:
     print("Error reading config.ini; string to number conversion error")
-    logging.error("Error reading config.ini; string to number conversion error")
+    logging.fatal("Error reading config.ini; string to number conversion error")
     exit(1)
 
 # When a new process starts using the 'spawn' method, it re-imports the main script.
