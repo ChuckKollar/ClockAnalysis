@@ -182,8 +182,7 @@ from multiprocessing import Pool
 from multiprocessing.pool import AsyncResult
 import copy
 
-APPLY_ASYNC_WITH_N = 13.2 * 60.0
-ITERATION_N = 60
+APPLY_ASYNC_WITH_N = 14.2 * 60.0
 def run_scanner(lidar_restarts):
     """
     This function simply grabs data from the LIDAR as fast as it can and sends data for analysis to one of the

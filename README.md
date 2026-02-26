@@ -2,8 +2,13 @@
 
 The Projected Daily Deviation (sec/day) from Field 7 Chart is computed by applying a curve fitting algorithm
 (sine wave) to the left most point of each pendulum found in a scan. Here one hour of data is used to
-perform the curve fitting. This amounts to 15 Hz x 60 sec/min x 60 min/hr = 54,000 data points to determine
-the period of the sine wave which this graph is based.
+perform the curve fitting. This amounts to 15 Hz x 60 sec/min x 60 min = 54,000 cycles (data points) to
+determine the period of the sine wave which this graph is based.
+
+The Pendulum Swing (mm) from Field 3 Chart is computed from the maximum datapoints found from left side
+of the pendulum and the right side of the pendulum. One minute of data is used which amounts to
+15 Hz x 60 sec/min x 5 min= 900 4,500 cycles (data points).
+
 
 ### LIDAR Accuracy
 
