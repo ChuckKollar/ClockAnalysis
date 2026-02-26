@@ -16,10 +16,11 @@ To compensate for the small number of points that would be reflected by the pend
 multiple scans are made. This increases the probability that scans (in particular) close to the ends of the
 pendulum are made and so increases the accuracy of the Pendulum Swing measurement. In one minute over 14*60 or
 620 scans can be made. After about 400 scans the coverage on the pendulum bob is about 500 distinct points at
-a 0.1 mm resolution on a 203mm (8") bob. This amounts to about one point in every four (2030/500) across the
-pendulum bob at 0.1 mm intervals. This point density can be projected across the swing of the pendulum
+a 0.1 mm spacing on a 203mm (8") bob. This amounts to about one point in every four (2030/500) across the
+pendulum bob. The point density across the bob can be projected across the swing of the pendulum
 though the accuracy still remains at ≤2.5 mm. So, there is reasonable certainty that the ends of the pendulum
-swing is caught (on average) to a resolution of ≤2.5 mm.
+swing is caught to within 0.5 mm to a resolution of ≤2.5 mm. So the Pendulum Swing measurement
+should be no worse than 3.0 mm on either end for any given reading.
 
 
 ## Documents
