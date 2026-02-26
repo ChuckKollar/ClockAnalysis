@@ -111,8 +111,8 @@ def find_pendulum_process(scan_w_time):
     scan_data_diff_len = len(scan_data_diff)
     if scan_data_diff_len == 1:
         pendulum_found_failures += 1
-    else:
-        logging.info(f"Found pendulum points: {scan_data_diff_len}")
+    # else:
+    #     logging.info(f"Found pendulum points: {scan_data_diff_len}")
     return 0, nanos, scan_data_diff
 
 from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
@@ -201,6 +201,7 @@ def run_scanner(lidar_restarts):
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
     iteration_cnt: int = 0
+    # pendulum_coverage_list = []
     results: List[AsyncResult] = []
     completed_results: List[AsyncResult] = []
     # https://docs.python.org/3/library/multiprocessing.html
@@ -249,20 +250,21 @@ def run_scanner(lidar_restarts):
                                                                                          processing_time,))
                                         start_time = time.perf_counter()
                                         results.append(result_obj)
+                                        # logging.info(f"Pendulum Coverage: {len(pendulum_coverage_list)}")
+                                        # pendulum_coverage_list = []
                                         nanos_first_points_min = []
                                         nanos_first_points_min_len = 0
                                 completed_results.append(result)
                             if value[0] == 1:
+                                # Pendulum Coverage: 2603, 2607, 2612
+                                # for item in value[1]:
+                                #     n = round(item[1], 1)
+                                #     if n not in pendulum_coverage_list:
+                                #         pendulum_coverage_list.append(n)
                                 completed_results.append(result)
                     completed_results_set = set(completed_results)
                     results = [item for item in results if item not in completed_results_set]
                     completed_results = []
-                    # iteration_cnt += 1
-                    # if iteration_cnt % ITERATION_N == 0:
-                    #     # 5.0-5.5 Hz (or readings/swing) no processing; half speed.
-                    #     # 12.9-13.0 Hz no processing; full speed.
-                    #     logging.info(f"{ITERATION_N / (time.perf_counter() - start_time):.1f} Hz")
-                    #     start_time = time.perf_counter()
             except RPLidarException as e:
                 health = lidar.get_health()
                 logging.error(f"RPLidar Exception: {e}; Lidar Health: {health}")

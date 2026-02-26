@@ -11,10 +11,10 @@ a circle around the device. The number of points returned per revolution is depe
 revolution rate which here comes to about fifteen revolutions per sec (Hz). The number of points returned
 along that circle are also determined by the speed of the revolution, but here it's on the order of 250
 points per revolution. From the [Key Parameters Sheet](https://www.slamtec.com/en/lidar/a2spec) the
-accuracy is given as 1% of the range ≤3 m. So it the range is 1 m the accruacy should be ≤1 mm.
+accuracy is given as 1% of the range ≤3 m. So it the range is 1 m the accuracy should be ≤1 mm.
 To compensate for the small number of points that would be reflected from the pendulum in one scan (typically 21-28),
-multiple scans are made. In one minute 14*60 or 620 scans can be made. After about 400 scans the pendulum size
-(spread between left and right points) does not change.
+multiple scans are made. In one minute 14*60 or 620 scans can be made. After about 400 scans the coverage is
+about 500 points within 0.1mm on a 203mm (8") bob. This amounts to about one point every 0.4mm or accuracy ≤0.4 mm.
 
 
 ## Documents
@@ -50,6 +50,7 @@ that shows the lidar and pendulum in operation.
 - [Windless Turret Clock Oil](https://www.cousinsuk.com/product/windles-turret-clock-oil)
 - [NAWCC: Tower and Street Clock Chapter #134](http://www.tscchapter134.org/)
 - [Clock Pendulum with Air Drag Damping](https://moorepants.github.io/resonance/04-2020/clock_pendulum_with_damping.html)
+- [Circular Error in a Pendulum](https://www.abbeyclock.com/pendulumerror.html)
 
 ### Lidar Notes:
 - [Slamtec RPLIDAR A2 Introduction and Data Sheet](https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf)
@@ -63,7 +64,7 @@ that shows the lidar and pendulum in operation.
 - 
 
 ### Audio Notes:
-- [Autocoleation](https://dsp.stackexchange.com/questions/386/autocorrelation-in-audio-analysis)
+- [Autocorrelation](https://dsp.stackexchange.com/questions/386/autocorrelation-in-audio-analysis)
 - [OpenSoundscape](https://opensoundscape.org/en/latest/)
 - [localization_algorithms module](https://opensoundscape.org/en/latest/source/opensoundscape.localization.html#module-opensoundscape.localization.localization_algorithms) for two microphones
 - [ReSpeaker Mic Array v3.0](https://wiki.seeedstudio.com/respeaker_mic_array_v3.0/)
