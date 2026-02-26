@@ -1,6 +1,9 @@
 ## Implementation
 
-
+The Projected Daily Deviation (sec/day) from Field 7 Chart is computed by applying a curve fitting algorithm
+(sine wave) to the left most point of each pendulum found in a scan. Here one hour of data is used to
+perform the curve fitting. This amounts to 15 Hz x 60 sec/min x 60 min/hr = 54,000 data points to determine
+the period of the sine wave which this graph is based.
 
 ### LIDAR Accuracy
 
@@ -8,10 +11,10 @@ The Slamtec RPLIDAR A2M12 LIDAR unit that was used here can be purchased on [Ama
 (Feb 2026) for a bit over $200US. From the [Data Sheet](https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf)
 it is a 360 Degree 2D Laser Range Scanner. That is, distances from the unit are measured at points in
 a circle around the device. The number of points returned per revolution is dependent on the programmable
-revolution rate which here comes to about fifteen revolutions per sec (Hz). The number of points returned
+revolution rate which here comes to about 15 revolutions per sec (Hz). The number of points returned
 along that circle are also determined by the speed of the revolution; here it's on the order of 250
 points per revolution. From the [Key Parameters Sheet](https://www.slamtec.com/en/lidar/a2spec) the
-accuracy is given as 1% of the range ≤3 m. So with a range of 250 mm the accuracy should be ≤2.5 mm.
+accuracy is given as 1% of the range ≤3 m. So with a range of 250 mm (0.25 m) the accuracy should be ≤2.5 mm.
 To compensate for the small number of points that would be reflected by the pendulum in one scan (typically 21-28),
 multiple scans are made. This increases the probability that scans (in particular) close to the ends of the
 pendulum are made and so increases the accuracy of the Pendulum Swing measurement. In one minute over 14*60 or
@@ -19,8 +22,10 @@ pendulum are made and so increases the accuracy of the Pendulum Swing measuremen
 a 0.1 mm spacing on a 203mm (8") bob. This amounts to about one point in every four (2030/500) across the
 pendulum bob. The point density across the bob can be projected across the swing of the pendulum
 though the accuracy still remains at ≤2.5 mm. So, there is reasonable certainty that the ends of the pendulum
-swing is caught to within 0.5 mm to a resolution of ≤2.5 mm. So the Pendulum Swing measurement
-should be no worse than 3.0 mm on either end for any given reading.
+swing is caught to ≤0.5 mm to a resolution of ≤2.5 mm. So the Pendulum Swing measurement
+should be within 3.0 mm on either end for any given reading.
+
+This tells us the worst case in terms of accuracy. It does not say is how the accuracy changes over time.
 
 
 ## Documents
