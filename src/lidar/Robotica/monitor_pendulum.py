@@ -256,7 +256,6 @@ def run_scanner(lidar_restarts):
                                         nanos_first_points_min_len = 0
                                 completed_results.append(result)
                             if value[0] == 1:
-                                # Pendulum Coverage: 2603, 2607, 2612
                                 # for item in value[1]:
                                 #     n = round(item[1], 1)
                                 #     if n not in pendulum_coverage_list:
