@@ -4,17 +4,22 @@
 
 ### LIDAR Accuracy
 
-The Slamtec RPLIDAR A2M12 LIDAR unit used here can be purchased on [Amazon](https://www.amazon.com/dp/B0B46MG65X)
+The Slamtec RPLIDAR A2M12 LIDAR unit that was used here can be purchased on [Amazon](https://www.amazon.com/dp/B0B46MG65X)
 (Feb 2026) for a bit over $200US. From the [Data Sheet](https://static.generation-robots.com/media/pj2-ld310-slamtec-rplidar-datasheet-a2m12-v1-0-en-2874.pdf)
 it is a 360 Degree 2D Laser Range Scanner. That is, distances from the unit are measured at points in
 a circle around the device. The number of points returned per revolution is dependent on the programmable
 revolution rate which here comes to about fifteen revolutions per sec (Hz). The number of points returned
-along that circle are also determined by the speed of the revolution, but here it's on the order of 250
+along that circle are also determined by the speed of the revolution; here it's on the order of 250
 points per revolution. From the [Key Parameters Sheet](https://www.slamtec.com/en/lidar/a2spec) the
-accuracy is given as 1% of the range ≤3 m. So it the range is 1 m the accuracy should be ≤1 mm.
-To compensate for the small number of points that would be reflected from the pendulum in one scan (typically 21-28),
-multiple scans are made. In one minute 14*60 or 620 scans can be made. After about 400 scans the coverage is
-about 500 points within 0.1mm on a 203mm (8") bob. This amounts to about one point every 0.4mm or accuracy ≤0.4 mm.
+accuracy is given as 1% of the range ≤3 m. So with a range of 250 mm the accuracy should be ≤2.5 mm.
+To compensate for the small number of points that would be reflected by the pendulum in one scan (typically 21-28),
+multiple scans are made. This increases the probability that scans (in particular) close to the ends of the
+pendulum are made and so increases the accuracy of the Pendulum Swing measurement. In one minute over 14*60 or
+620 scans can be made. After about 400 scans the coverage on the pendulum bob is about 500 distinct points at
+a 0.1 mm resolution on a 203mm (8") bob. This amounts to about one point in every four (2030/500) across the
+pendulum bob at 0.1 mm intervals. This point density can be projected across the swing of the pendulum
+though the accuracy still remains at ≤2.5 mm. So, there is reasonable certainty that the ends of the pendulum
+swing is caught (on average) to a resolution of ≤2.5 mm.
 
 
 ## Documents
