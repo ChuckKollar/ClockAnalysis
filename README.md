@@ -66,7 +66,7 @@ before it curve fits the point to a sine curve.
 The curve fit uses [R-Squared](https://www.datacamp.com/tutorial/r-squared)
 to evaluate the model performance. This measures the ability of the independent
 variables to explain the dependent variable.
-The Field 8 Chard "R Squared" shows the results of applying R-Squared to the model.
+The Field 8 Chart "R Squared" shows the results of applying R-Squared to the model.
 The 'config.ini' file contains a parameter R_SQUARED_THRESHOLD
 that is used to discard results that are considered out of range.
 It then finds the Daily Deviation using the Pendulum Period extracted from the curve fit.
