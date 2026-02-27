@@ -101,7 +101,7 @@ The file [animate.py](src/lidar/Robotica/animate.py) can be used to make a hover
 scan or a movie of a pendulum scan. It comes in handy to visualize the data. It is a
 modified version of a file included with the Robotica library.
 
-The file [measure_sppeed.py](src/lidar/Robotica/measure_speed.py) was directly taken from the
+The file [measure_speed.py](src/lidar/Robotica/measure_speed.py) was directly taken from the
 Robotica library and is handy the understand the rate at which LIDAR scans are made available.
 
 ## Documents

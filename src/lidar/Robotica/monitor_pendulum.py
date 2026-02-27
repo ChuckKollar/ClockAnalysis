@@ -137,7 +137,7 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing
     # pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
     if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < r_squared_threshold:
-        logging.warning(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
+        logging.warning(f"outliers: {outliers}; nano_first_angles: {nano_first_angles}")
     lidar_readings = pendulum_found_failures + len(nano_first_angles_orig)
     lidar_readings_hz = lidar_readings / processing_time
     pendulum_found_failure_percentage = (pendulum_found_failures / lidar_readings) * 100.0
