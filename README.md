@@ -121,4 +121,6 @@ Mostly relevant and not so relevant documents.
 ### Programming Notes:
 - [Python Process-based parallelism](https://docs.python.org/3/library/multiprocessing.html#)
 - [Z-Score](https://www.jmp.com/en/statistics-knowledge-portal/inferential-statistics/hypothesis-testing/z-score)
+- [Curve Fit a Sine Wave](https://math.stackexchange.com/questions/36725/how-to-fit-a-curve-to-a-sinusoidal-wave)
+- [R-Squared Explained](https://www.datacamp.com/tutorial/r-squared)
 - 
