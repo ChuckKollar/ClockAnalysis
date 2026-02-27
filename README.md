@@ -1,6 +1,7 @@
 This [GitHub repo](https://github.com/ChuckKollar/ClockAnalysis.git) contains code (fragments of trials in some cases) used to understand how
-to monitor a pendulum of a clock. The two mechanisms used are that of LIDAR position tracking
-and sound analysis (there are also sections of notes) to identify drive train abnormalities.
+to monitor a pendulum of a clock. The two mechanisms used are that of
+[LIDAR](https://www.jouav.com/blog/what-is-lidar.html)
+position tracking and sound analysis (there are also sections of notes) to identify drive train abnormalities.
 
 At this point there is a working example only of the LIDAR (Slamtec RPLIDAR A2M12)
 monitoring found in [monitor_pendulum.py](src/lidar/Robotica/monitor_pendulum.py).
@@ -22,7 +23,7 @@ The ThingSpeak page contains several Fields/Charts.
 The Projected Daily Deviation (sec/day) from Field 7 Chart and the
 Pendulum Period (sec/cycle) from Field 1 Chart
 are computed by applying a curve fitting algorithm (sine wave) to the left most x-point of each
-pendulum found in a scan. The lidar produces <theta, angle> which is converted into a cartesian
+pendulum found in a scan. The LIDAR produces <theta, angle> which is converted into a cartesian
 coordinate system where the x-axis moves left to right and the y-axis front to back.
 It is the x-axis points that are used to curve fit the sine wave motion of the pendulum.
 One hour of data is used to perform the curve fitting for the Field
@@ -45,7 +46,9 @@ There are a number of processes that are
 used. The first process find_pendulum_process() takes the current LIDAR scan and compares it to the
 previous LIDAR scan looking for the one string of adjacent datapoints that is changing between the scans.
 The assumption here is that the pendulum is the only thing that is moving in the path of the LIDAR.
-The code can be configured through the 'config.ini' file to throw away points that are at a distance
+The code can be configured through the
+[config.ini](src/lidar/config.ini.example) 
+file to throw away points that are at a distance
 greater than SCAN_RADIUS_MM. This process first creates an array of adjacent points arrays,
 and then looks for the adjacent points array that has moved. Field 5 Chart "Pendulum not found in LIDAR
 Data" shows the percentage of time that this process fails either because none was found or more than one
