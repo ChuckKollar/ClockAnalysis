@@ -63,8 +63,12 @@ There are actually two one for minute processing and another for hour processing
 This process first attempts to remove outliers according to a
 [Z-Score](https://www.jmp.com/en/statistics-knowledge-portal/inferential-statistics/hypothesis-testing/z-score)
 before it curve fits the point to a sine curve.
-The Field 8 Chard "R Squared" shows this data. The 'config.ini' file contains a parameter R_SQUARED_THRESHOLD
-that is used to disgard results that are considered out of range.
+The curve fit uses [R-Squared](https://www.datacamp.com/tutorial/r-squared)
+to evaluate the model performance. This measures the ability of the independent
+variables to explain the dependent variable.
+The Field 8 Chard "R Squared" shows the results of applying R-Squared to the model.
+The 'config.ini' file contains a parameter R_SQUARED_THRESHOLD
+that is used to discard results that are considered out of range.
 It then finds the Daily Deviation using the Pendulum Period extracted from the curve fit.
 It then determines the swing, or how far left and right the pendulum has moved (max and min on the data).
 
