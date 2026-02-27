@@ -132,9 +132,9 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     # the swing is how far left and right the pendulum moves based on the LIDAR data
     pendulum_swing = abs(min(theta_uniform) - max(theta_uniform))
-    theta_uniform_computed = sine_function(t_uniform, *fitted_params)
+    # theta_uniform_computed = sine_function(t_uniform, *fitted_params)
     # the computed swing is how far left and right the pendulum would move according to the sine_function
-    pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
+    # pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
     if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < r_squared_threshold:
         logging.warning(f"outliers: {outliers}; nono_first_angles: {nano_first_angles}")
