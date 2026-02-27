@@ -1,5 +1,5 @@
 This [GitHub repo](https://github.com/ChuckKollar/ClockAnalysis.git) contains code (fragments of trials in some cases) used to understand how
-to monitor a pendulum of a clock. The two mechanisms used are that of
+to monitor a pendulum of a clock. The two mechanisms used are that of 2-D
 [LIDAR](https://www.jouav.com/blog/what-is-lidar.html)
 position tracking and sound analysis (there are also sections of notes) to identify drive train abnormalities.
 
@@ -47,7 +47,7 @@ used. The first process find_pendulum_process() takes the current LIDAR scan and
 previous LIDAR scan looking for the one string of adjacent datapoints that is changing between the scans.
 The assumption here is that the pendulum is the only thing that is moving in the path of the LIDAR.
 The code can be configured through the
-[config.ini](src/lidar/config.ini.example) 
+[config.ini](src/lidar/Robotica/config.ini.example) 
 file to throw away points that are at a distance
 greater than SCAN_RADIUS_MM. This process first creates an array of adjacent points arrays,
 and then looks for the adjacent points array that has moved. Field 5 Chart "Pendulum not found in LIDAR
