@@ -19,7 +19,9 @@ that shows the lidar and pendulum in operation.
 
 ## Implementation
 
-The ThingSpeak page contains several Fields/Charts.
+The
+[ThingSpeak](https://thingspeak.mathworks.com/channels/3258476)
+page contains several Fields/Charts.
 The Projected Daily Deviation (sec/day) from Field 7 Chart and the
 Pendulum Period (sec/cycle) from Field 1 Chart
 are computed by applying a curve fitting algorithm (sine wave) to the left most x-point of each
@@ -32,13 +34,16 @@ This amounts to 15 Hz x 60 sec/min x 60 min = 54,000 cycles (data points) to
 determine the period of the sine wave for Field 7 Chart and
 15 Hz x 60 sec/min x 5 min= 900 cycles for Field 1 Chart.
 
-The Pendulum Swing (mm) from Field 3 Chart are computed from subtracting the min and max of the data
+The Pendulum Swing (mm) from Field 3 Chart is computed from subtracting the min and max of the data
 points from left side of the pendulum. One minute of data is used which amounts to
 15 Hz x 60 sec/min x 5 min= 900 cycles (data points).
 
 Part of the magic of working with LIDAR data is that the data keeps coming. You need to be in a tight
 loop retrieving data and shoveling it off to subprocesses (in this case or threads in another case)
-which do the heavy lifting processing. Any processing in the routine that retrieves the data
+which do the heavy lifting processing.
+[Threads are problematic in Python](https://dev.to/epam_india_python/python-313-the-gateway-to-high-performance-multithreading-without-gil-1dm7)
+so processes are used.
+Any processing in the routine that retrieves the data
 run_scanner() may cause the LIDAR to error out because it's buffer fills up and it generates an exception.
 It should be possible to run the LIDAR for days without error.
 Field 4 Chart "LIDAR Readings Hz" shows the frequency of LIDAR readings.
