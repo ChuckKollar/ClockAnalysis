@@ -116,7 +116,7 @@ def find_dissimilar_scans(scan_a: List, scan_b: List, threshold: float=2.5):
     if len(found) != 1:
         return  [len(found)]
 
-    #logger.debug(f"find_dissimilar_scans: {found}")
+    logger.debug(f"find_dissimilar_scans: {found}")
     return found[0]
 
 if __name__ == "__main__":

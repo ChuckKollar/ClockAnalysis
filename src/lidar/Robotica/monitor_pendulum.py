@@ -36,14 +36,15 @@ def nanos_str(nanos):
 # Channel States:  https://thingspeak.mathworks.com/channels/3258476
 # RESR API:  https://www.mathworks.com/help/thingspeak/rest-api.html
 def thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                     lidar_readings_hz, pendulum_found_failure_percentage, lidar_restarts, r_squared):
+                     lidar_readings_hz, pendulum_found_failure_percentage, lidar_restarts,
+                     r_squared, pendulum_width):
     """https://thingspeak.mathworks.com/channels/3258476/api_keys"""
     # Pendulum Period (sec/cycle), Projected Daily Deviation (sec/day), Pendulum Swing (mm),
     # Pendulum Swing Computed (mm), Pendulum Found Errors, LIDAR Restarts
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
            f"&field1={pendulum_period:.4f}&field2={projected_daily_deviation:.3f}&field3={pendulum_swing:.1f}"
            f"&field4={lidar_readings_hz:.1f}&field5={pendulum_found_failure_percentage:.1f}"
-           f"&field6={lidar_restarts}&field8={r_squared:.4f}"
+           f"&field6={pendulum_width:.1f}&field8={r_squared:.4f}"
            )
     logging.info(f"pendulum_period: {pendulum_period:.4f} (sec/cycle)"
                  f"; projected_daily_deviation: {projected_daily_deviation:.3f} (sec/day)"
@@ -51,7 +52,9 @@ def thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
                  f"; lidar readings: {lidar_readings_hz:.1f} (Hz)"
                  f"; pendulum_found_failure_percentage: {pendulum_found_failure_percentage:.1f}"
                  f"; lidar_restarts: {lidar_restarts}"
-                 f"; R Squared {r_squared:.4f}")
+                 f"; R Squared {r_squared:.4f}"
+                 f"; Pendulum Width {pendulum_width:.1f}"
+                 )
     return url
 
 import requests
@@ -83,7 +86,7 @@ def thingspeak_post(url):
             logging.info(f"ThingSpeak: Data sent OK: {response_text_int}")
             # There should be a more graceful way of handling this...
             if response_text_int == 0:
-                # The update failed. Retry one time after a delay...
+                # The update failed. Retry one time after the minimum ThingSpeak delay...
                 sleep(16)
                 logging.info(f"ThingSpeak: Repeating POST for: {url}")
                 requests.post(url)
@@ -123,15 +126,15 @@ def find_pendulum_process(scan_w_time):
     scan_data_diff_len = len(scan_data_diff)
     if scan_data_diff_len == 1:
         pendulum_found_failures += 1
-    # else:
-    #     logging.info(f"Found pendulum points: {scan_data_diff_len}")
+    else:
+        logging.debug(f"Found pendulum points: {scan_data_diff_len}")
     return 0, nanos, scan_data_diff
 
 from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
 from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
-def pendulum_info_min_process(nano_first_points_orig, lidar_restarts, processing_time):
+def pendulum_info_min_process(nano_first_points_orig, lidar_restarts, processing_time, pendulum_coverage_list):
     """
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
@@ -148,18 +151,21 @@ def pendulum_info_min_process(nano_first_points_orig, lidar_restarts, processing
     # the computed swing is how far left and right the pendulum would move according to the sine_function
     # pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
-    if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < r_squared_threshold:
-        logging.warning(f"outliers: {outliers}; nano_first_points: {nano_first_points}")
+    if outliers or abs(projected_daily_deviation) > 600.0:
+        logging.warning(f"projected_daily_deviation: {projected_daily_deviation:.3f} (sec/day)"
+                        f"; r_squared: {r_squared:.4f}; outliers: {outliers};"
+                        f" nano_first_points: {nano_first_points}")
     lidar_readings = pendulum_found_failures + len(nano_first_points_orig)
     lidar_readings_hz = lidar_readings / processing_time
     pendulum_found_failure_percentage = (pendulum_found_failures / lidar_readings) * 100.0
     pendulum_found_failures = 0
+    pendulum_width = max(pendulum_coverage_list) - min(pendulum_coverage_list)
     # This doesn't say how to fix the data, it just says that it is bad and not to use it.
     # See the discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
     if r_squared < r_squared_threshold:
-        logging.info(f"Data discarded because R^2: {r_squared:.4f} < threshold of {r_squared_threshold}"
-                     f"; pendulum_period: {pendulum_period:.4f} (sec/cycle)"
-                     f"; lidar readings: {lidar_readings_hz:.1f} (Hz)")
+        logging.warning(f"Data discarded because R^2 {r_squared:.4f} < threshold of {r_squared_threshold}"
+                        f"; pendulum_period: {pendulum_period:.4f} (sec/cycle)"
+                        f"; lidar readings: {lidar_readings_hz:.1f} (Hz)")
         thingspeak_post(f"https://api.thingspeak.com/update?api_key={write_api_key}"
                         f"&field4={lidar_readings_hz:.1f}"
                         f"&field5={pendulum_found_failure_percentage:.1f}"
@@ -168,7 +174,8 @@ def pendulum_info_min_process(nano_first_points_orig, lidar_restarts, processing
         # the empty array signifies that no data was found.
         return 1, []
     thingspeak_post(thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
-                                     lidar_readings_hz, pendulum_found_failure_percentage, lidar_restarts, r_squared))
+                                     lidar_readings_hz, pendulum_found_failure_percentage, lidar_restarts,
+                                     r_squared, pendulum_width))
     return 1, nano_first_points
 
 def pendulum_info_hr_process(nano_first_points_orig):
@@ -211,7 +218,7 @@ def run_scanner(lidar_restarts):
     As the hours go by the frequency will increase to about 13.7 Hz, and 14.7 Hz.
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
-    # pendulum_coverage_list = []
+    pendulum_coverage_list = []
     results: List[AsyncResult] = []
     completed_results: List[AsyncResult] = []
     # https://docs.python.org/3/library/multiprocessing.html
@@ -250,6 +257,12 @@ def run_scanner(lidar_restarts):
                                 value_nanos = value[1]
                                 value_scan = value[2]
                                 if len(value_scan) > 1:
+                                    # add this scan to the pendulum coverage list with tenth mm resolution...
+                                    for pt in value_scan:
+                                        n = round(pt[1], 1)
+                                        if n not in pendulum_coverage_list:
+                                            pendulum_coverage_list.append(n)
+                                    logging.debug(f"Pendulum Coverage: {len(pendulum_coverage_list)}")
                                     nano_first_point = (value_nanos, value_scan[0][1], value_scan[0][0])
                                     nanos_first_points_min.append(nano_first_point)
                                     nanos_first_points_min_len += 1
@@ -271,22 +284,18 @@ def run_scanner(lidar_restarts):
                                         result_obj: AsyncResult = pool.apply_async(pendulum_info_min_process,
                                                                                    args=(copy.deepcopy(nanos_first_points_min),
                                                                                          lidar_restarts,
-                                                                                         processing_time,),
+                                                                                         processing_time,
+                                                                                         copy.deepcopy(pendulum_coverage_list),),
                                                                                    error_callback=error_handler
                                                                                    )
-                                        start_time = time.perf_counter()
                                         results.append(result_obj)
-                                        # logging.info(f"Pendulum Coverage: {len(pendulum_coverage_list)}")
-                                        # pendulum_coverage_list = []
+                                        start_time = time.perf_counter()
+                                        pendulum_coverage_list = []
                                         nanos_first_points_min = []
                                         nanos_first_points_min_len = 0
                                 completed_results.append(result)
                             if value[0] == 1:
                                 # Process the results of 'pendulum_info_min_process' or 'pendulum_info_hr_process'...
-                                # for item in value[1]:
-                                #     n = round(item[1], 1)
-                                #     if n not in pendulum_coverage_list:
-                                #         pendulum_coverage_list.append(n)
                                 completed_results.append(result)
                     completed_results_set = set(completed_results)
                     results = [item for item in results if item not in completed_results_set]
@@ -303,6 +312,7 @@ def run_scanner(lidar_restarts):
             except Exception as e:
                 # This handles Python-level exceptions raised by the worker
                 logging.error(f"Exception: {e}")
+                logging.error("Exception traceback: ", exc_info=(type(e), e, e.__traceback__))
             finally:
                 logging.fatal('Stoping...')
                 lidar.stop()
@@ -368,3 +378,4 @@ if __name__ == '__main__':
 # 2026-02-23 09:34:49,756 - INFO - root - outliers: [(302514.246668439, 404.74745646394194, 1.4349167116675894), (302427.111368239, 468.41218321847646, -9.070645649589546), ...
 # 2026-02-23 09:34:49,756 - INFO - root - Data discarded because R^2: 0.18733608583468397 < threshold of 0.7; pendulum_period: 1.9997644948513849;
 # 4) Need to get readings closer to clock time; hours close to the hour, and minutes close to the minute.
+# 5) Since almost nothing now is written to the log file it would be nice to write an entry every X hours (24?)
