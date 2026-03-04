@@ -1,9 +1,12 @@
 import numpy as np
 from scipy.optimize import curve_fit
-import matplotlib.pyplot as plt
+from scipy.optimize import OptimizeWarning
 from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
+import logging
 
+logger = logging.getLogger(__name__)
 
 def mean_absolute_deviation(data):
     """
@@ -66,8 +69,15 @@ def fit_sine_with_fft_guess(t, theta):
         params, params_covariance = curve_fit(sine_function, t, theta, p0=initial_guess)
         return params
 
+    except ValueError as e:
+        logger.error(f"Error during curve fitting; either `ydata` or `xdata` contain NaNs,"
+                     f" or incompatible options are used: {e}")
+        return None
     except RuntimeError as e:
-        print(f"Error during curve fitting: {e}")
+        logger.error(f"Error during curve fitting; least-squares minimization fails: {e}")
+        return None
+    except OptimizeWarning as e:
+        logger.error(f"Error during curve fitting; covariance of the parameters can not be estimated: {e}")
         return None
 
 def pendulum_equation(data):
@@ -89,7 +99,6 @@ def pendulum_equation(data):
 
     # 3. Calculate the R² to determine goodness of fit
     theta_uniform_fitted = sine_function(t_uniform, *fitted_params)
-    r_squared = r2_score(theta_uniform, theta_uniform_fitted)
     # R² shows how much of the total variance in the dependent variable is explained by
     # the model. It measures the ability of the independent variables to explain the dependent
     # variable. It ranges from 0 to 1. The closer R² is to 1, the better the model fits the data.
@@ -97,6 +106,7 @@ def pendulum_equation(data):
     # An R² value below 0.25 (or 25%) is generally considered to indicate a weak correlation,
     # meaning the independent variable explains less than 25% of the variance in the dependent
     # variable.
+    r_squared = r2_score(theta_uniform, theta_uniform_fitted)
 
     return period, t_uniform, theta_uniform, fitted_params, r_squared
 

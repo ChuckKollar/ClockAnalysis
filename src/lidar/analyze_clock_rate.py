@@ -1,5 +1,7 @@
 import math
+import logging
 
+logger = logging.getLogger(__name__)
 
 def analyze_clock_rate(measured_period, ideal_period=2.0):
     """

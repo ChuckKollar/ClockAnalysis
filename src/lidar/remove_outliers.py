@@ -1,6 +1,8 @@
 import numpy as np
 from scipy import stats
+import logging
 
+logger = logging.getLogger(__name__)
 
 def remove_outliers_zscore(data, column_index, threshold=2.25):
     """

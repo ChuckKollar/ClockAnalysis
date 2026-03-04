@@ -5,7 +5,6 @@ import math
 import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG) # Set the minimum level for this logger
 
 def angular_distance_degrees(angle1, angle2):
     """

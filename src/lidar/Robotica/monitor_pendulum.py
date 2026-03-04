@@ -93,6 +93,18 @@ def thingspeak_post(url):
     except requests.exceptions.RequestException as e:
         logging.error(f"ThingSpeak: Connection failed: {e}")
 
+# This function is called in the main process's result-handling thread
+def error_handler(error):
+    """
+    Callback function to handle exceptions raised by the task_function.
+
+    The callback runs in a separate thread within the main process, not the worker process that failed.
+    """
+    logging.error(f"[ERROR CALLBACK] An exception occurred: {error}")
+    # You can also print the traceback information here if needed
+    # import traceback
+    # traceback.print_tb(error.__traceback__)
+
 consecutive_scans_last = None
 pendulum_found_failures: int = 0
 def find_pendulum_process(scan_w_time):
@@ -178,7 +190,7 @@ def pendulum_info_hr_process(nano_first_angles_orig):
     return 1, nano_first_angles
 
 from typing import List
-from multiprocessing import Pool
+from multiprocessing import Pool, TimeoutError, get_context, cpu_count
 from multiprocessing.pool import AsyncResult
 import copy
 
@@ -199,12 +211,18 @@ def run_scanner(lidar_restarts):
     As the hours go by the frequency will increase to about 13.7 Hz, and 14.7 Hz.
     """
     global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
-    iteration_cnt: int = 0
     # pendulum_coverage_list = []
     results: List[AsyncResult] = []
     completed_results: List[AsyncResult] = []
     # https://docs.python.org/3/library/multiprocessing.html
-    with Pool(processes=4) as pool:
+    # Use spawn to prevent issues with forking threads
+    ctx = get_context('spawn')
+    num_proc = cpu_count() * 2
+    logging.warning(f"num_proc: {num_proc}")
+    # https://pythonspeed.com/articles/python-multiprocessing/
+    # maxtasksperchild specifies the number of tasks a worker process can complete before it is terminated and
+    # replaced with a new, "fresh" worker process.
+    with ctx.Pool(processes=num_proc, maxtasksperchild=100) as pool:
         start_time = time.perf_counter()
         lidar = startup_lidar(lidar_port, lidar_baud_rate, lidar_motor_rpm, logging)
         while True:
@@ -214,7 +232,10 @@ def run_scanner(lidar_restarts):
                     # scan_with_time is printed we use millisecond accurate (10^-3).
                     scan_with_time = (time.perf_counter(), scan)
                     # Submit a single task to the pool, non-blocking
-                    result_obj: AsyncResult = pool.apply_async(find_pendulum_process, args=(scan_with_time,))
+                    result_obj: AsyncResult = pool.apply_async(find_pendulum_process,
+                                                               args=(scan_with_time,),
+                                                               error_callback=error_handler
+                                                               )
                     results.append(result_obj)
 
                     for result in results:
@@ -222,6 +243,7 @@ def run_scanner(lidar_restarts):
                         if result.ready() and result not in completed_results:
                             # Non-blocking get: use a very short timeout or check ready() first
                             # The get() will return immediately once ready() is True
+                            # This will also prevent a crashed worker from hanging the .get
                             value = result.get(timeout=0.1)
                             if value[0] == 0:
                                 value_nanos = value[1]
@@ -237,7 +259,9 @@ def run_scanner(lidar_restarts):
                                     # one.
                                     if nanos_first_points_hr_len >= APPLY_ASYNC_WITH_N*60.0:
                                         result_obj: AsyncResult = pool.apply_async(pendulum_info_hr_process,
-                                                                                   args=(copy.deepcopy(nanos_first_points_hr),))
+                                                                                   args=(copy.deepcopy(nanos_first_points_hr),),
+                                                                                   error_callback=error_handler
+                                                                                   )
                                         results.append(result_obj)
                                         nanos_first_points_hr = []
                                         nanos_first_points_hr_len = 0
@@ -246,7 +270,9 @@ def run_scanner(lidar_restarts):
                                         result_obj: AsyncResult = pool.apply_async(pendulum_info_min_process,
                                                                                    args=(copy.deepcopy(nanos_first_points_min),
                                                                                          lidar_restarts,
-                                                                                         processing_time,))
+                                                                                         processing_time,),
+                                                                                   error_callback=error_handler
+                                                                                   )
                                         start_time = time.perf_counter()
                                         results.append(result_obj)
                                         # logging.info(f"Pendulum Coverage: {len(pendulum_coverage_list)}")
@@ -263,12 +289,20 @@ def run_scanner(lidar_restarts):
                     completed_results_set = set(completed_results)
                     results = [item for item in results if item not in completed_results_set]
                     completed_results = []
+            #  If the worker raises a standard Python exception (rather than a hard crash), that exception is
+            #  caught by the pool and re-raised in the main process when AsyncResult.get() is called.
             except RPLidarException as e:
                 health = lidar.get_health()
                 logging.error(f"RPLidar Exception: {e}; Lidar Health: {health}")
+            except TimeoutError as e:
+                logging.error(f"Subprocess Exception: {e} out (likely crashed).")
             except KeyboardInterrupt:
-                logging.fatal('Stoping...')
+                logging.error("Keyboard Interrupt")
+            except Exception as e:
+                # This handles Python-level exceptions raised by the worker
+                logging.error(f"Exception: {e}")
             finally:
+                logging.fatal('Stoping...')
                 lidar.stop()
                 lidar.stop_motor()
                 lidar.disconnect()
@@ -316,6 +350,11 @@ if __name__ == '__main__':
         sleep(2)
 
 # TODO:
+# 0) After a few days the program seems to hang without generating any errors, the LIDAR continuws to spin.
+# Add code to look for possibilities like the processes go away and never finish their computation. This could
+# because they get stuck in processing or they generate an exception and we don't hear about it.
+# Error during curve fitting: Optimal parameters not found: Number of calls to function has reached maxfev = 1000.
+# So, make sure that all of the functions called from this file use logger and not print for errors.
 # 1) Need to test if this detects a stopped or bumped pendulum or does the R^2 negate it?
 # Stopping the pendulum for a moment results in a slightly larger R^2 (R Squared 0.9300)
 # but there is it is possible to detect an anomaly in the 'Pendulum Period', 'Time Keeping',
