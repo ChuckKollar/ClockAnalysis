@@ -131,7 +131,7 @@ from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
 from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
-def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing_time):
+def pendulum_info_min_process(nano_first_points_orig, lidar_restarts, processing_time):
     """
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
@@ -139,8 +139,8 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing
     global pendulum_found_failures
     # Outliers are harder to spot on the depth value (2) rather than the lateral value (1)
     # because the swing is greater than the front to back thickness of the pendulum.
-    nano_first_angles, outliers = remove_outliers_zscore(nano_first_angles_orig, 1)
-    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_angles)
+    nano_first_points, outliers = remove_outliers_zscore(nano_first_points_orig, 1)
+    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_points)
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     # the swing is how far left and right the pendulum moves based on the LIDAR data
     pendulum_swing = abs(min(theta_uniform) - max(theta_uniform))
@@ -149,8 +149,8 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing
     # pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
     # There are outliers here so we need to understand what they are and later where they are coming from...
     if outliers or abs(projected_daily_deviation) > 600.0 or r_squared < r_squared_threshold:
-        logging.warning(f"outliers: {outliers}; nano_first_angles: {nano_first_angles}")
-    lidar_readings = pendulum_found_failures + len(nano_first_angles_orig)
+        logging.warning(f"outliers: {outliers}; nano_first_points: {nano_first_points}")
+    lidar_readings = pendulum_found_failures + len(nano_first_points_orig)
     lidar_readings_hz = lidar_readings / processing_time
     pendulum_found_failure_percentage = (pendulum_found_failures / lidar_readings) * 100.0
     pendulum_found_failures = 0
@@ -169,15 +169,15 @@ def pendulum_info_min_process(nano_first_angles_orig, lidar_restarts, processing
         return 1, []
     thingspeak_post(thingspeak_url_1(pendulum_period, projected_daily_deviation, pendulum_swing,
                                      lidar_readings_hz, pendulum_found_failure_percentage, lidar_restarts, r_squared))
-    return 1, nano_first_angles
+    return 1, nano_first_points
 
-def pendulum_info_hr_process(nano_first_angles_orig):
+def pendulum_info_hr_process(nano_first_points_orig):
     """
     This is used to find information about the pendulum using the time associated with the
     scan and the first (left most) point of the pendulum.
     """
-    nano_first_angles, outliers = remove_outliers_zscore(nano_first_angles_orig, 1)
-    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_angles)
+    nano_first_points, outliers = remove_outliers_zscore(nano_first_points_orig, 1)
+    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_points)
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
            f"&field7={projected_daily_deviation:.3f}"
@@ -187,7 +187,7 @@ def pendulum_info_hr_process(nano_first_angles_orig):
         logging.warning(f"Data discarded because R^2: {r_squared} < threshold of {r_squared_threshold}; pendulum_period: {pendulum_period:.4f}; ")
         return 1, []
     thingspeak_post(url)
-    return 1, nano_first_angles
+    return 1, nano_first_points
 
 from typing import List
 from multiprocessing import Pool, TimeoutError, get_context, cpu_count
@@ -246,6 +246,7 @@ def run_scanner(lidar_restarts):
                             # This will also prevent a crashed worker from hanging the .get
                             value = result.get(timeout=0.1)
                             if value[0] == 0:
+                                # Process the results of 'find_pendulum_process'...
                                 value_nanos = value[1]
                                 value_scan = value[2]
                                 if len(value_scan) > 1:
@@ -281,6 +282,7 @@ def run_scanner(lidar_restarts):
                                         nanos_first_points_min_len = 0
                                 completed_results.append(result)
                             if value[0] == 1:
+                                # Process the results of 'pendulum_info_min_process' or 'pendulum_info_hr_process'...
                                 # for item in value[1]:
                                 #     n = round(item[1], 1)
                                 #     if n not in pendulum_coverage_list:
