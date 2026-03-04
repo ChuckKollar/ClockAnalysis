@@ -217,7 +217,7 @@ def run_scanner(lidar_restarts):
     # https://docs.python.org/3/library/multiprocessing.html
     # Use spawn to prevent issues with forking threads
     ctx = get_context('spawn')
-    num_proc = cpu_count() * 2
+    num_proc = cpu_count()
     logging.warning(f"num_proc: {num_proc}")
     # https://pythonspeed.com/articles/python-multiprocessing/
     # maxtasksperchild specifies the number of tasks a worker process can complete before it is terminated and
