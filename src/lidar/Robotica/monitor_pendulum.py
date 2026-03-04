@@ -3,6 +3,7 @@
 from rplidar import RPLidar, RPLidarException
 from lidar.const import startup_lidar
 from lidar.find_proximal_points import find_consecutive_proximal_points, find_dissimilar_scans
+import numpy as np
 import logging
 import time
 
@@ -134,19 +135,24 @@ from lidar.fit_sine_with_fft_guess import pendulum_equation, sine_function
 from lidar.analyze_clock_rate import analyze_clock_rate
 from lidar.remove_outliers import remove_outliers_zscore
 
-def pendulum_info_min_process(nano_first_points_orig, lidar_restarts, processing_time, pendulum_coverage_list):
+def pendulum_info_min_process(nano_first_n_last_points_orig, lidar_restarts, processing_time):
     """
     This is used to find information about the pendulum using the time associated with the
-    scan and the first (left most) point of the pendulum.
+    scan and the first (left most) point, and the lsat (right most) point of the pendulum <t, f, l>.
     """
     global pendulum_found_failures
-    # Outliers are harder to spot on the depth value (2) rather than the lateral value (1)
-    # because the swing is greater than the front to back thickness of the pendulum.
-    nano_first_points, outliers = remove_outliers_zscore(nano_first_points_orig, 1)
-    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_points)
+    nano_first_points, outliers = remove_outliers_zscore(nano_first_n_last_points_orig, 1)
+    nano_last_points, _ = remove_outliers_zscore(nano_first_n_last_points_orig, 2)
+    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_points, 1)
+    _, _, theta_uniform_last, _, r_squared_last = pendulum_equation(nano_last_points, 2)
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     # the swing is how far left and right the pendulum moves based on the LIDAR data
     pendulum_swing = abs(min(theta_uniform) - max(theta_uniform))
+    pendulum_width_min = abs(min(theta_uniform) - min(theta_uniform_last))
+    pendulum_width_max = abs(max(theta_uniform) - max(theta_uniform_last))
+    pendulum_width = np.mean([pendulum_width_min, pendulum_width_max])
+    logging.debug(f"pendulum_width_min: {pendulum_width_min}; pendulum_width_max: {pendulum_width_max}"
+                  f"; r_squared: {r_squared}; r_squared_last: {r_squared_last}")
     # theta_uniform_computed = sine_function(t_uniform, *fitted_params)
     # the computed swing is how far left and right the pendulum would move according to the sine_function
     # pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
@@ -155,11 +161,10 @@ def pendulum_info_min_process(nano_first_points_orig, lidar_restarts, processing
         logging.warning(f"projected_daily_deviation: {projected_daily_deviation:.3f} (sec/day)"
                         f"; r_squared: {r_squared:.4f}; outliers: {outliers};"
                         f" nano_first_points: {nano_first_points}")
-    lidar_readings = pendulum_found_failures + len(nano_first_points_orig)
+    lidar_readings = pendulum_found_failures + len(nano_first_n_last_points_orig)
     lidar_readings_hz = lidar_readings / processing_time
     pendulum_found_failure_percentage = (pendulum_found_failures / lidar_readings) * 100.0
     pendulum_found_failures = 0
-    pendulum_width = max(pendulum_coverage_list) - min(pendulum_coverage_list)
     # This doesn't say how to fix the data, it just says that it is bad and not to use it.
     # See the discussion of R^2 in fit_sine_with_fft_guess:pendulum_equation()
     if r_squared < r_squared_threshold:
@@ -217,8 +222,7 @@ def run_scanner(lidar_restarts):
 
     As the hours go by the frequency will increase to about 13.7 Hz, and 14.7 Hz.
     """
-    global nanos_first_points_min, nanos_first_points_min_len, nanos_first_points_hr, nanos_first_points_hr_len
-    pendulum_coverage_list = []
+    global nanos_first_n_last_points_min, nanos_first_n_last_points_min_len, nanos_first_n_last_points_hr, nanos_first_n_last_points_hr_len
     results: List[AsyncResult] = []
     completed_results: List[AsyncResult] = []
     # https://docs.python.org/3/library/multiprocessing.html
@@ -257,42 +261,32 @@ def run_scanner(lidar_restarts):
                                 value_nanos = value[1]
                                 value_scan = value[2]
                                 if len(value_scan) > 1:
-                                    # add this scan to the pendulum coverage list with tenth mm resolution...
-                                    for pt in value_scan:
-                                        n = round(pt[1], 1)
-                                        if n not in pendulum_coverage_list:
-                                            pendulum_coverage_list.append(n)
-                                    logging.debug(f"Pendulum Coverage: {len(pendulum_coverage_list)}")
-                                    nano_first_point = (value_nanos, value_scan[0][1], value_scan[0][0])
-                                    nanos_first_points_min.append(nano_first_point)
-                                    nanos_first_points_min_len += 1
-                                    nanos_first_points_hr.append(nano_first_point)
-                                    nanos_first_points_hr_len += 1
-                                    # ThingSpeak enforces a minimum interval of 15 seconds between updates to a
-                                    # channel's data. So if there is an hour one send it and throw away the minute
-                                    # one.
-                                    if nanos_first_points_hr_len >= APPLY_ASYNC_WITH_N*60.0:
+                                    # Scan info: <time, left_most_point, right_most_point>
+                                    nano_first_n_last_point = (value_nanos, value_scan[0][1], value_scan[-1][1])
+                                    nanos_first_n_last_points_min.append(nano_first_n_last_point)
+                                    nanos_first_n_last_points_min_len += 1
+                                    nanos_first_n_last_points_hr.append(nano_first_n_last_point)
+                                    nanos_first_n_last_points_hr_len += 1
+                                    if nanos_first_n_last_points_hr_len >= APPLY_ASYNC_WITH_N*60.0:
                                         result_obj: AsyncResult = pool.apply_async(pendulum_info_hr_process,
-                                                                                   args=(copy.deepcopy(nanos_first_points_hr),),
+                                                                                   args=(copy.deepcopy(nanos_first_n_last_points_hr),),
                                                                                    error_callback=error_handler
                                                                                    )
                                         results.append(result_obj)
-                                        nanos_first_points_hr = []
-                                        nanos_first_points_hr_len = 0
-                                    elif nanos_first_points_min_len >= APPLY_ASYNC_WITH_N:
+                                        nanos_first_n_last_points_hr = []
+                                        nanos_first_n_last_points_hr_len = 0
+                                    elif nanos_first_n_last_points_min_len >= APPLY_ASYNC_WITH_N:
                                         processing_time = time.perf_counter() - start_time
                                         result_obj: AsyncResult = pool.apply_async(pendulum_info_min_process,
-                                                                                   args=(copy.deepcopy(nanos_first_points_min),
+                                                                                   args=(copy.deepcopy(nanos_first_n_last_points_min),
                                                                                          lidar_restarts,
-                                                                                         processing_time,
-                                                                                         copy.deepcopy(pendulum_coverage_list),),
+                                                                                         processing_time,),
                                                                                    error_callback=error_handler
                                                                                    )
                                         results.append(result_obj)
                                         start_time = time.perf_counter()
-                                        pendulum_coverage_list = []
-                                        nanos_first_points_min = []
-                                        nanos_first_points_min_len = 0
+                                        nanos_first_n_last_points_min = []
+                                        nanos_first_n_last_points_min_len = 0
                                 completed_results.append(result)
                             if value[0] == 1:
                                 # Process the results of 'pendulum_info_min_process' or 'pendulum_info_hr_process'...
@@ -326,10 +320,10 @@ import configparser
 import os
 from time import sleep
 
-nanos_first_points_min = []
-nanos_first_points_hr = []
-nanos_first_points_min_len = 0
-nanos_first_points_hr_len = 0
+nanos_first_n_last_points_min = []
+nanos_first_n_last_points_hr = []
+nanos_first_n_last_points_min_len = 0
+nanos_first_n_last_points_hr_len = 0
 
 # Copy config.ini.example to config.ini and change the WRITE_API_KEY to the one that you get from
 # https://thingspeak.mathworks.com/channels/??????/api_keys

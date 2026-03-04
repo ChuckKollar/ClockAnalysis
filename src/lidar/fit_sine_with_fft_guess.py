@@ -80,10 +80,10 @@ def fit_sine_with_fft_guess(t, theta):
         logger.error(f"Error during curve fitting; covariance of the parameters can not be estimated: {e}")
         return None
 
-def pendulum_equation(data):
+def pendulum_equation(data, index):
     t0 = data[0][0]
     t_nonuniform = np.array([x[0]-t0 for x in data])
-    theta_nonuniform = np.array([x[1] for x in data])
+    theta_nonuniform = np.array([x[index] for x in data])
 
     # must be made uniform for curve fitting....
     t_uniform = np.linspace(t_nonuniform.min(), t_nonuniform.max(), len(data))
