@@ -100,10 +100,10 @@ def error_handler(error):
 
     The callback runs in a separate thread within the main process, not the worker process that failed.
     """
-    logging.error(f"[ERROR CALLBACK] An exception occurred: {error}")
-    # You can also print the traceback information here if needed
-    # import traceback
-    # traceback.print_tb(error.__traceback__)
+    logging.error(f"[ERROR CALLBACK] An exception occurred in a subprocess: {error}")
+    # Create the exc_info tuple manually
+    exc_info_tuple = (type(error), error, error.__traceback__)
+    logging.error("[ERROR CALLBACK] traceback: ", exc_info=exc_info_tuple)
 
 consecutive_scans_last = None
 pendulum_found_failures: int = 0
@@ -350,7 +350,7 @@ if __name__ == '__main__':
         sleep(2)
 
 # TODO:
-# 0) After a few days the program seems to hang without generating any errors, the LIDAR continuws to spin.
+# 0) After a few days the program seems to hang without generating any errors, the LIDAR continues to spin.
 # Add code to look for possibilities like the processes go away and never finish their computation. This could
 # because they get stuck in processing or they generate an exception and we don't hear about it.
 # Error during curve fitting: Optimal parameters not found: Number of calls to function has reached maxfev = 1000.
