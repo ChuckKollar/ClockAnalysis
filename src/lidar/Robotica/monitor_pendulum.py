@@ -148,11 +148,12 @@ def pendulum_info_min_process(nano_first_n_last_points_orig, lidar_restarts, pro
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     # the swing is how far left and right the pendulum moves based on the LIDAR data
     pendulum_swing = abs(min(theta_uniform) - max(theta_uniform))
-    pendulum_width_min = abs(min(theta_uniform) - min(theta_uniform_last))
-    pendulum_width_max = abs(max(theta_uniform) - max(theta_uniform_last))
-    pendulum_width = np.mean([pendulum_width_min, pendulum_width_max])
-    logging.debug(f"pendulum_width_min: {pendulum_width_min}; pendulum_width_max: {pendulum_width_max}"
-                  f"; r_squared: {r_squared}; r_squared_last: {r_squared_last}")
+    pendulum_width = abs(min(theta_uniform) - min(theta_uniform_last))
+    pendulum_width_last = abs(max(theta_uniform) - max(theta_uniform_last))
+    logging.warning(f"pendulum_swing: {pendulum_swing}"
+                    f"; pendulum_width: {pendulum_width}"
+                    f"; pendulum_width_max: {pendulum_width_last}"
+                    f"; r_squared: {r_squared}; r_squared_last: {r_squared_last}")
     # theta_uniform_computed = sine_function(t_uniform, *fitted_params)
     # the computed swing is how far left and right the pendulum would move according to the sine_function
     # pendulum_swing_computed = abs(min(theta_uniform_computed) - max(theta_uniform_computed))
@@ -189,7 +190,7 @@ def pendulum_info_hr_process(nano_first_points_orig):
     scan and the first (left most) point of the pendulum.
     """
     nano_first_points, outliers = remove_outliers_zscore(nano_first_points_orig, 1)
-    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_points)
+    pendulum_period, t_uniform, theta_uniform, fitted_params, r_squared = pendulum_equation(nano_first_points, 1)
     projected_daily_deviation, _ = analyze_clock_rate(pendulum_period)
     url = (f"https://api.thingspeak.com/update?api_key={write_api_key}"
            f"&field7={projected_daily_deviation:.3f}"
