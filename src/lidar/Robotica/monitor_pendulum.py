@@ -276,7 +276,7 @@ def run_scanner(lidar_restarts):
                                         results.append(result_obj)
                                         nanos_first_n_last_points_hr = []
                                         nanos_first_n_last_points_hr_len = 0
-                                    elif nanos_first_n_last_points_min_len >= APPLY_ASYNC_WITH_N:
+                                    elif nanos_first_n_last_points_min_len >= APPLY_ASYNC_WITH_N*5.0:
                                         processing_time = time.perf_counter() - start_time
                                         result_obj: AsyncResult = pool.apply_async(pendulum_info_min_process,
                                                                                    args=(copy.deepcopy(nanos_first_n_last_points_min),
