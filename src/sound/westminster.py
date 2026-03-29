@@ -1,4 +1,5 @@
 import pyaudio
+import wave
 import numpy as np
 from scipy.fftpack import fft
 import noisereduce as nr
@@ -46,8 +47,6 @@ def auto_scale(data_chunk):
 # Configuration
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
-CHUNK = 2048
-RATE = 48000
 RECORD_SECONDS = 5  # Analyze 5-second segments
 
 # Westminster notes frequencies (approximate)
@@ -73,7 +72,23 @@ CHANGE_Q4 = Q2 + Q3 + Q4 + Q5 # + hour (E3)
 # The first tones on all Quarters...
 FIRST_TONES = [415.3, 329.63, 246.94]
 
-def is_chime(data):
+def find_target_freq(data_raw, target_freq, rate):
+    data = np.frombuffer(data_raw, dtype=np.int16)
+    # Calculate FFT and identify dominant frequency
+    fft_data = np.abs(np.fft.rfft(data))
+    # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
+    peak_freq = np.fft.rfftfreq(len(data), 1.0 / rate)[np.argmax(fft_data)]
+
+    # Compare peak against target range [7, 8]
+    tfw = 50
+    target_freq_max = target_freq + tfw
+    target_freq_min = target_freq - tfw
+    if target_freq_min <= peak_freq <= target_freq_max:
+        print(f"MATCH: {peak_freq:.2f} Hz")
+        return True
+    return False
+
+def is_chime(data, chunk, rate):
     now = datetime.now()
     formatted_time_ms = now.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
     logging.debug(f"len data: {len(data)}; time: {formatted_time_ms}")
@@ -88,19 +103,19 @@ def is_chime(data):
 
     # Perform FFT
     data_int = np.frombuffer(scaled_data, dtype=np.int16)
-    fft_data = np.abs(fft(data_int))[0:CHUNK // 2]
-    freqs = np.fft.fftfreq(CHUNK, 1.0 / RATE)[0:CHUNK // 2]
+    fft_data = np.abs(fft(data_int))[0:chunk // 2]
+    freqs = np.fft.fftfreq(chunk, 1.0 / rate)[0:chunk // 2]
 
     # Simple peak detection
     peak_freq = freqs[np.argmax(fft_data)]
 
     # Check if the peak is near our target frequencies
     for target in FIRST_TONES:
-        if abs(peak_freq - target) < 10:  # 10Hz tolerance
+        if abs(peak_freq - target) < 5:  # 5Hz tolerance
             now = datetime.now()
             formatted_time_ms = now.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            logging.debug(f"Westminster Chime Detected; time: {formatted_time_ms}")
-            print(f"Westminster Chime Detected; time: {formatted_time_ms}")
+            logging.debug(f"Westminster Chime Detected; target: {target}; time: {formatted_time_ms}")
+            print(f"Westminster Chime Detected; target: {target}; time: {formatted_time_ms}")
             return True
     return False
 
@@ -121,12 +136,16 @@ def error_handler(error):
     logging.error("[ERROR CALLBACK] traceback: ", exc_info=exc_info_tuple)
 
 def listen_westminster(p):
+    # The number of frames (samples) read in each iteration of the loop.
+    chunk: int = 2048
+    # The sampling rate (samples per second, e.g., 44100 Hz).
+    rate = 48000
     stream = None
     stream_o = None
     try:
-        stream = p.open(format=FORMAT, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK,
+        stream = p.open(format=FORMAT, channels=1, rate=rate, input=True, frames_per_buffer=chunk,
                         input_device_index=2)
-        stream_o = p.open(format=FORMAT, channels=2, rate=RATE, output=True, output_device_index=4)
+        stream_o = p.open(format=FORMAT, channels=2, rate=rate, output=True, output_device_index=4)
         print("Listening for Westminster Chimes...")
         ctx = get_context('spawn')
         num_proc = cpu_count()
@@ -134,17 +153,21 @@ def listen_westminster(p):
         completed_results: List[AsyncResult] = []
         with ctx.Pool(processes=num_proc, maxtasksperchild=100) as pool:
             while True:
-                data = stream.read(CHUNK)
-                stream_o.write(data)
-                result_obj: AsyncResult = pool.apply_async(is_chime, args=(data,), error_callback=error_handler)
+                # seconds_to_read = 1
+                # frames = []
+                # for i in range(0, int(rate / chunk * seconds_to_read )):
+                #     data = stream.read(chunk)
+                #     frames.append(data)
+                # frames = b''.join(frames)
+                frames = stream.read(chunk)
+                stream_o.write(frames)
+                result_obj: AsyncResult = pool.apply_async(is_chime, args=(frames,chunk,rate,), error_callback=error_handler)
                 results.append(result_obj)
 
                 for result in results:
                     # Check if the task is complete without blocking the main process...
                     if result.ready() and result not in completed_results:
-                        value = result.get(timeout=0.1)
-                        if value is True:
-                            print("Westminster Chime Detected!")
+                        _ = result.get(timeout=0.1)
                         completed_results.append(result)
                 completed_results_set = set(completed_results)
                 results = [item for item in results if item not in completed_results_set]
@@ -163,9 +186,59 @@ def listen_westminster(p):
         stream_o.close()
         p.terminate()
 
+def listen_for_peaks(p, record_seconds, wav_output_file):
+    # The number of frames (samples) read in each iteration of the loop.
+    chunk: int = 2048
+    # The sampling rate (samples per second, e.g., 44100 Hz).
+    sample_rate = 48000
+    stream = None
+    stream_o = None
+    frames = []
+    channels_i = 1
+    channels_o = 2
+    try:
+        stream = p.open(format=FORMAT, channels=channels_i, rate=sample_rate, input=True, frames_per_buffer=chunk,
+                        input_device_index=2)
+        #stream_o = p.open(format=FORMAT, channels=channels_o, rate=sample_rate, output=True, output_device_index=5)
+        # Record in chunks for the specified duration
+        for i in range(0, int(sample_rate / chunk * record_seconds)):
+            data = stream.read(chunk)
+            #stream_o.write(data)
+            frames.append(data)
+            data_np = np.frombuffer(data, dtype=np.int16)
+            # np.append(frames_np, data_np)
+            # Calculate FFT and identify dominant frequency
+            fft_data = np.abs(np.fft.rfft(data_np))
+            # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
+            peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
+            logging.debug(f"Peak: {peak_freq:.2f} Hz")
+
+    except KeyboardInterrupt:
+        print("Stopping...")
+    except Exception as e:
+        # This handles Python-level exceptions raised by the worker
+        logging.error(f"Exception: {e}")
+        logging.error("Exception traceback: ", exc_info=(type(e), e, e.__traceback__))
+    finally:
+        logging.info("Stopping...")
+        stream.stop_stream()
+        stream.close()
+        # stream_o.stop_stream()
+        # stream_o.close()
+        with wave.open(wav_output_file, 'wb') as wf:
+            wf.setnchannels(channels_i)
+            wf.setsampwidth(p.get_sample_size(FORMAT))
+            wf.setframerate(sample_rate)
+            #stereo_data = np.vstack((frames_np, frames_np)).reshape((-1,), order='F')
+            #wf.writeframes(stereo_data.tobytes())
+            wf.writeframes(b''.join(frames))  # Write all frames at once
+        p.terminate()
+        logging.info(f"File '{wav_output_file}' saved successfully.")
+
 if __name__ == '__main__':
     logging.info("Starting...")
     p = pyaudio.PyAudio()
     for i in range(p.get_device_count()):
         print(p.get_device_info_by_index(i))
-    listen_westminster(p)
+    #listen_westminster(p)
+    listen_for_peaks(p, 30, './logs/output.wav')
