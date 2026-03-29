@@ -175,6 +175,42 @@ def listen_westminster(p):
         stream_o.close()
         p.terminate()
 
+def listen_for_peaks(p, record_seconds, wav_output_file):
+    # The number of frames (samples) read in each iteration of the loop.
+    chunk: int = 2048
+    # The sampling rate (samples per second, e.g., 44100 Hz).
+    sample_rate = 48000
+    stream = None
+    frames = []
+    channels_i = 1
+    try:
+        stream = p.open(format=FORMAT, channels=channels_i, rate=sample_rate, input=True, frames_per_buffer=chunk,
+                        input_device_index=2)
+        # Record in chunks for the specified duration
+        for i in range(0, int(sample_rate / chunk * record_seconds)):
+            data = stream.read(chunk)
+            frames.append(data)
+            data_np = np.frombuffer(data, dtype=np.int16)
+            # np.append(frames_np, data_np)
+            # Calculate FFT and identify dominant frequency
+            fft_data = np.abs(np.fft.rfft(data_np))
+            # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
+            peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
+            logging.debug(f"Peak: {peak_freq:.2f} Hz")
+
+    except KeyboardInterrupt:
+        print("Stopping...")
+    except Exception as e:
+        # This handles Python-level exceptions raised by the worker
+        logging.error(f"Exception: {e}")
+        logging.error("Exception traceback: ", exc_info=(type(e), e, e.__traceback__))
+    finally:
+        logging.info("Stopping...")
+        stream.stop_stream()
+        stream.close()
+        write_wav_file(frames, wav_output_file, channels_i, p.get_sample_size(FORMAT), sample_rate)
+        p.terminate()
+
 def listen_for_peaks_in_file(p, wav_input_file):
     # The number of frames (samples) read in each iteration of the loop.
     chunk: int = 2048
@@ -211,42 +247,6 @@ def listen_for_peaks_in_file(p, wav_input_file):
     finally:
         logging.info("Stopping...")
         wf.close()
-        p.terminate()
-
-def listen_for_peaks(p, record_seconds, wav_output_file):
-    # The number of frames (samples) read in each iteration of the loop.
-    chunk: int = 2048
-    # The sampling rate (samples per second, e.g., 44100 Hz).
-    sample_rate = 48000
-    stream = None
-    frames = []
-    channels_i = 1
-    try:
-        stream = p.open(format=FORMAT, channels=channels_i, rate=sample_rate, input=True, frames_per_buffer=chunk,
-                        input_device_index=2)
-        # Record in chunks for the specified duration
-        for i in range(0, int(sample_rate / chunk * record_seconds)):
-            data = stream.read(chunk)
-            frames.append(data)
-            data_np = np.frombuffer(data, dtype=np.int16)
-            # np.append(frames_np, data_np)
-            # Calculate FFT and identify dominant frequency
-            fft_data = np.abs(np.fft.rfft(data_np))
-            # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
-            peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
-            logging.debug(f"Peak: {peak_freq:.2f} Hz")
-
-    except KeyboardInterrupt:
-        print("Stopping...")
-    except Exception as e:
-        # This handles Python-level exceptions raised by the worker
-        logging.error(f"Exception: {e}")
-        logging.error("Exception traceback: ", exc_info=(type(e), e, e.__traceback__))
-    finally:
-        logging.info("Stopping...")
-        stream.stop_stream()
-        stream.close()
-        write_wav_file(frames, wav_output_file, channels_i, p.get_sample_size(FORMAT), sample_rate)
         p.terminate()
 
 if __name__ == '__main__':

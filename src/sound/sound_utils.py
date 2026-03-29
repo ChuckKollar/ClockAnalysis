@@ -83,6 +83,6 @@ def find_target_freq(data_raw, target_freq, rate):
     target_freq_max = target_freq + tfw
     target_freq_min = target_freq - tfw
     if target_freq_min <= peak_freq <= target_freq_max:
-        print(f"MATCH: {peak_freq:.2f} Hz")
+        logging.info(f"MATCH: {peak_freq:.2f} Hz")
         return True
     return False
