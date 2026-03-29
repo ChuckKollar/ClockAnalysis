@@ -4,8 +4,10 @@ import pyaudio
 import wave
 import numpy as np
 from scipy.fftpack import fft
-import logging
 from datetime import datetime
+from scipy.signal import find_peaks
+import math
+import logging
 import argparse
 from sound_utils import freq_to_note, write_wav_file
 
@@ -45,7 +47,7 @@ def auto_scale(data_chunk):
 # brew install portaudio
 # pip install --upgrade pip
 # xcode-select --install
-# pip install PyAudio numpy scipy noisereduce
+# pip install PyAudio numpy scipy noisereduce librosa
 
 # Configuration
 FORMAT = pyaudio.paInt16
@@ -230,13 +232,33 @@ def listen_for_peaks_in_file(p, wav_input_file):
             # Calculate the time for the beginning of the current chunk
             current_time_seconds = frames_read_total / float(frame_rate)
             data_np = np.frombuffer(data, dtype=np.int16)
+            frames_read_total += len(data) // (n_channels * samp_width)  # number of frames in the chunk
+
             # np.append(frames_np, data_np)
             # Calculate FFT and identify dominant frequency
             fft_data = np.abs(np.fft.rfft(data_np))
             # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
             peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
-            logging.debug(f"Time: {current_time_seconds:.4f} sec; Peak: {peak_freq:.2f} Hz; Note: {freq_to_note(peak_freq)}")
-            frames_read_total += len(data) // (n_channels * samp_width)  # number of frames in the chunk
+            # logging.debug(f"Time: {current_time_seconds:.4f} sec; Peak: {peak_freq:.2f} Hz; Note: {freq_to_note(peak_freq)}")
+
+            samples = len(data_np)  # Number of samples in the segment
+            # 3. Perform Fast Fourier Transform (FFT)
+            yf = np.fft.rfft(data_np)  # FFT for real-valued signals
+            xf = np.fft.rfftfreq(samples, 1 / frame_rate)  # Frequency bins
+            # Get magnitude and normalize
+            freq_magnitude = np.abs(yf)
+            # 4. Find frequency peaks
+            # Use scipy.signal.find_peaks to identify prominent frequencies
+            # You might need to adjust the height and distance parameters based on your audio
+            peak_indices, properties = find_peaks(freq_magnitude, height=0.01 * np.max(freq_magnitude), distance=10)
+            detected_frequencies = xf[peak_indices]
+            detected_magnitudes = freq_magnitude[peak_indices]
+            # Sort by magnitude for easier reading
+            sorted_peaks = sorted(zip(detected_frequencies, detected_magnitudes), key=lambda x: x[1], reverse=True)
+            str = ""
+            for freq, mag in sorted_peaks[:4]:
+                str += f"{freq:.1f}Hz {freq_to_note(freq)} {math.log2(mag):.1f}dB "
+            logging.debug(f"Time: {current_time_seconds:.4f} sec; {str}")
 
     except KeyboardInterrupt:
         print("Stopping...")
