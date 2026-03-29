@@ -192,18 +192,14 @@ def listen_for_peaks(p, record_seconds, wav_output_file):
     # The sampling rate (samples per second, e.g., 44100 Hz).
     sample_rate = 48000
     stream = None
-    stream_o = None
     frames = []
     channels_i = 1
-    channels_o = 2
     try:
         stream = p.open(format=FORMAT, channels=channels_i, rate=sample_rate, input=True, frames_per_buffer=chunk,
                         input_device_index=2)
-        #stream_o = p.open(format=FORMAT, channels=channels_o, rate=sample_rate, output=True, output_device_index=5)
         # Record in chunks for the specified duration
         for i in range(0, int(sample_rate / chunk * record_seconds)):
             data = stream.read(chunk)
-            #stream_o.write(data)
             frames.append(data)
             data_np = np.frombuffer(data, dtype=np.int16)
             # np.append(frames_np, data_np)
@@ -223,15 +219,27 @@ def listen_for_peaks(p, record_seconds, wav_output_file):
         logging.info("Stopping...")
         stream.stop_stream()
         stream.close()
-        # stream_o.stop_stream()
-        # stream_o.close()
         with wave.open(wav_output_file, 'wb') as wf:
             wf.setnchannels(channels_i)
             wf.setsampwidth(p.get_sample_size(FORMAT))
             wf.setframerate(sample_rate)
-            #stereo_data = np.vstack((frames_np, frames_np)).reshape((-1,), order='F')
-            #wf.writeframes(stereo_data.tobytes())
-            wf.writeframes(b''.join(frames))  # Write all frames at once
+            frames_b = b''.join(frames)
+            audio_data = np.frombuffer(frames_b, dtype=np.int16)
+            max_peak = np.max(np.abs(audio_data))
+            # Define the maximum possible value for a 16-bit signed integer
+            # This is the ceiling before clipping occurs
+            max_int16 = 32767
+            # Calculate the scaling factor to bring the max peak to just below max_int16
+            # A small safety margin (e.g., 0.99) can be added to prevent potential floating point errors causing clipping
+            scaling_factor = (max_int16 * 0.99) / max_peak
+            # Apply the scaling factor to all samples
+            normalized_audio_data = (audio_data * scaling_factor).astype(np.int16)
+            # The 'prop_decrease' parameter adjusts the intensity of the noise reduction (default is 0.8)
+            # 'sr' is the sample rate
+            reduced_noise_normalized_audio_data = nr.reduce_noise(y=normalized_audio_data, sr=sample_rate, prop_decrease=0.8)
+            wf.writeframes(reduced_noise_normalized_audio_data.tobytes())
+            #wf.writeframes(normalized_audio_data.tobytes())
+            #wf.writeframes(frames_b)  # Write all frames at once
         p.terminate()
         logging.info(f"File '{wav_output_file}' saved successfully.")
 
@@ -241,4 +249,4 @@ if __name__ == '__main__':
     for i in range(p.get_device_count()):
         print(p.get_device_info_by_index(i))
     #listen_westminster(p)
-    listen_for_peaks(p, 30, './logs/output.wav')
+    listen_for_peaks(p, 20, './logs/output.wav')
