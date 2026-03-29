@@ -189,6 +189,34 @@ def listen_westminster(p):
         stream_o.close()
         p.terminate()
 
+def write_wav_file(channels, sample_width, frame_rate, frames, wav_output_file):
+    now = datetime.now()
+    file_timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+    wav_output_file_ts = f"{wav_output_file.rstrip('.wav')}_{file_timestamp}.wav"
+    with wave.open(wav_output_file_ts, 'wb') as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(sample_width)
+        wf.setframerate(frame_rate)
+        frames_b = b''.join(frames)
+        audio_data = np.frombuffer(frames_b, dtype=np.int16)
+        max_peak = np.max(np.abs(audio_data))
+        # Define the maximum possible value for a 16-bit signed integer
+        # This is the ceiling before clipping occurs
+        max_int16 = 32767
+        # Calculate the scaling factor to bring the max peak to just below max_int16
+        # A small safety margin (e.g., 0.99) can be added to prevent potential floating point errors causing clipping
+        scaling_factor = (max_int16 * 0.99) / max_peak
+        # Apply the scaling factor to all samples
+        normalized_audio_data = (audio_data * scaling_factor).astype(np.int16)
+        # The 'prop_decrease' parameter adjusts the intensity of the noise reduction (default is 0.8)
+        # 'sr' is the sample rate
+        reduced_noise_normalized_audio_data = nr.reduce_noise(y=normalized_audio_data, sr=frame_rate,
+                                                              prop_decrease=0.8)
+        wf.writeframes(reduced_noise_normalized_audio_data.tobytes())
+        # wf.writeframes(normalized_audio_data.tobytes())
+        # wf.writeframes(frames_b)  # Write all frames at once
+    logging.info(f"File '{wav_output_file}' saved successfully.")
+
 def listen_for_peaks(p, record_seconds, wav_output_file):
     # The number of frames (samples) read in each iteration of the loop.
     chunk: int = 2048
@@ -222,32 +250,8 @@ def listen_for_peaks(p, record_seconds, wav_output_file):
         logging.info("Stopping...")
         stream.stop_stream()
         stream.close()
-        now = datetime.now()
-        file_timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
-        wav_output_file_ts = f"{wav_output_file.rstrip('.wav')}_{file_timestamp}.wav"
-        with wave.open(wav_output_file_ts, 'wb') as wf:
-            wf.setnchannels(channels_i)
-            wf.setsampwidth(p.get_sample_size(FORMAT))
-            wf.setframerate(sample_rate)
-            frames_b = b''.join(frames)
-            audio_data = np.frombuffer(frames_b, dtype=np.int16)
-            max_peak = np.max(np.abs(audio_data))
-            # Define the maximum possible value for a 16-bit signed integer
-            # This is the ceiling before clipping occurs
-            max_int16 = 32767
-            # Calculate the scaling factor to bring the max peak to just below max_int16
-            # A small safety margin (e.g., 0.99) can be added to prevent potential floating point errors causing clipping
-            scaling_factor = (max_int16 * 0.99) / max_peak
-            # Apply the scaling factor to all samples
-            normalized_audio_data = (audio_data * scaling_factor).astype(np.int16)
-            # The 'prop_decrease' parameter adjusts the intensity of the noise reduction (default is 0.8)
-            # 'sr' is the sample rate
-            reduced_noise_normalized_audio_data = nr.reduce_noise(y=normalized_audio_data, sr=sample_rate, prop_decrease=0.8)
-            wf.writeframes(reduced_noise_normalized_audio_data.tobytes())
-            #wf.writeframes(normalized_audio_data.tobytes())
-            #wf.writeframes(frames_b)  # Write all frames at once
+        write_wav_file(channels_i, p.get_sample_size(FORMAT), sample_rate, frames, wav_output_file)
         p.terminate()
-        logging.info(f"File '{wav_output_file}' saved successfully.")
 
 if __name__ == '__main__':
     logging.info("Starting...")
