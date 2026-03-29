@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import pyaudio
 import wave
 import numpy as np
@@ -5,6 +7,7 @@ from scipy.fftpack import fft
 import noisereduce as nr
 import logging
 from datetime import datetime
+import argparse
 
 # Configure the root logger
 logging.basicConfig(
@@ -249,7 +252,12 @@ def listen_for_peaks(p, record_seconds, wav_output_file):
 if __name__ == '__main__':
     logging.info("Starting...")
     p = pyaudio.PyAudio()
-    for i in range(p.get_device_count()):
-        print(p.get_device_info_by_index(i))
+    parser = argparse.ArgumentParser(description="Westminster argument parser.")
+    parser.add_argument("-d", "--devices", action="store_true",
+                        help="Print device information before starting.")
+    args = parser.parse_args()
+    if args.devices:
+        for i in range(p.get_device_count()):
+            logging.info(p.get_device_info_by_index(i))
     #listen_westminster(p)
     listen_for_peaks(p, 30, './logs/output.wav')
