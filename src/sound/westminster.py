@@ -8,6 +8,7 @@ import noisereduce as nr
 import logging
 from datetime import datetime
 import argparse
+import math
 
 # Configure the root logger
 logging.basicConfig(
@@ -55,7 +56,8 @@ RECORD_SECONDS = 5  # Analyze 5-second segments
 # Westminster notes frequencies (approximate)
 # G#4 (415.3 Hz), F#4 (369.99 Hz), E4 (329.63 Hz), B3 (246.94 Hz)
 #TARGET_FREQS = [415, 370, 330, 247]
-
+# E3 in Pythagorean Tuning https://tunableapp.com/notes/e3/pythagorean/
+E3 = 164.814
 # Westminster Quarters https://en.wikipedia.org/wiki/Westminster_Quarters
 # G♯4, F♯4, E4, B3
 Q1 = [415.3, 369.99, 329.63, 246.94]
@@ -74,6 +76,26 @@ CHANGE_Q4 = Q2 + Q3 + Q4 + Q5 # + hour (E3)
 
 # The first tones on all Quarters...
 FIRST_TONES = [415.3, 329.63, 246.94]
+
+def freq_to_note(freq):
+    """
+    Given frequency to the closest standard musical note and octave.
+    """
+    if freq == 0:
+        return "Silence"
+
+    # Define notes in an octave
+    notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+    # Calculate half steps from A4 (440 Hz)
+    # A4 is 49th key on a standard 88-key piano
+    h = round(12 * math.log2(freq / 440.0))
+
+    # Calculate note index (0-11) and octave
+    note_index = (h + 9) % 12  # +9 to align with C as index 0
+    octave = (h + 49) // 12 + 1  # Approximate octave calculation
+
+    return notes[note_index] + str(octave)
 
 def find_target_freq(data_raw, target_freq, rate):
     data = np.frombuffer(data_raw, dtype=np.int16)
@@ -223,6 +245,44 @@ def write_wav_file(frames, wav_output_file, channels, sample_width, frame_rate):
         # wf.writeframes(frames_b)  # Write all frames at once
     logging.info(f"File '{wav_output_file}' saved successfully.")
 
+def listen_for_peaks_in_file(p, wav_input_file):
+    # The number of frames (samples) read in each iteration of the loop.
+    chunk: int = 2048
+    # The sampling rate (samples per second, e.g., 44100 Hz).
+    sample_rate = 48000
+    wf = None
+    try:
+        wf = wave.open(wav_input_file, 'rb')
+        frame_rate = wf.getframerate()
+        n_channels = wf.getnchannels()
+        samp_width = wf.getsampwidth()  # bytes per sample
+        frames_read_total = 0
+        while True:
+            data = wf.readframes(chunk)
+            if not data:
+                break
+            # Calculate the time for the beginning of the current chunk
+            current_time_seconds = frames_read_total / float(frame_rate)
+            data_np = np.frombuffer(data, dtype=np.int16)
+            # np.append(frames_np, data_np)
+            # Calculate FFT and identify dominant frequency
+            fft_data = np.abs(np.fft.rfft(data_np))
+            # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
+            peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
+            logging.debug(f"Time: {current_time_seconds:.4f} sec; Peak: {peak_freq:.2f} Hz; Note: {freq_to_note(peak_freq)}")
+            frames_read_total += len(data) // (n_channels * samp_width)  # number of frames in the chunk
+
+    except KeyboardInterrupt:
+        print("Stopping...")
+    except Exception as e:
+        # This handles Python-level exceptions raised by the worker
+        logging.error(f"Exception: {e}")
+        logging.error("Exception traceback: ", exc_info=(type(e), e, e.__traceback__))
+    finally:
+        logging.info("Stopping...")
+        wf.close()
+        p.terminate()
+
 def listen_for_peaks(p, record_seconds, wav_output_file):
     # The number of frames (samples) read in each iteration of the loop.
     chunk: int = 2048
@@ -269,5 +329,6 @@ if __name__ == '__main__':
     if args.devices:
         for i in range(p.get_device_count()):
             logging.info(p.get_device_info_by_index(i))
-    #listen_westminster(p)
-    listen_for_peaks(p, 40, './logs/output.wav')
+    # listen_westminster(p)
+    # listen_for_peaks(p, 40, './logs/output.wav')
+    listen_for_peaks_in_file(p,'./ChristChurch.wav')
