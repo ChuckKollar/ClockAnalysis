@@ -79,21 +79,26 @@ FIRST_TONES = [415.3, 329.63, 246.94]
 
 def freq_to_note(freq):
     """
-    Given frequency to the closest standard musical note and octave.
+    Map the given frequency (Hz) to the closest standard musical note and octave.
     """
-    if freq == 0:
-        return "Silence"
+    if freq <= 0:
+        # Invalid frequency or silence
+        return ""
 
     # Define notes in an octave
     notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-    # Calculate half steps from A4 (440 Hz)
+    # Calculate half steps from A4 (440 Hz; standard tuning)
     # A4 is 49th key on a standard 88-key piano
     h = round(12 * math.log2(freq / 440.0))
 
     # Calculate note index (0-11) and octave
-    note_index = (h + 9) % 12  # +9 to align with C as index 0
-    octave = (h + 49) // 12 + 1  # Approximate octave calculation
+    # note_index = (h + 9) % 12  # +9 to align with C as index 0
+    # octave = (h + 49) // 12 + 1  # Approximate octave calculation
+    # Calculate note name and octave
+    # 69 is A4 (440Hz) in MIDI notation
+    note_index = (h + 69) % 12
+    octave = (h + 69) // 12 - 1
 
     return notes[note_index] + str(octave)
 
