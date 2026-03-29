@@ -189,7 +189,12 @@ def listen_westminster(p):
         stream_o.close()
         p.terminate()
 
-def write_wav_file(channels, sample_width, frame_rate, frames, wav_output_file):
+def write_wav_file(frames, wav_output_file, channels, sample_width, frame_rate):
+    """
+    Write the audio data in 'frames' to the bas 'wav-output_file' by adding a time stamp.
+    Normalize the 'frames' data to make it as loud as possible before clipping, and reduce
+    the noise that is present before writing.
+    """
     now = datetime.now()
     file_timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
     wav_output_file_ts = f"{wav_output_file.rstrip('.wav')}_{file_timestamp}.wav"
@@ -250,7 +255,7 @@ def listen_for_peaks(p, record_seconds, wav_output_file):
         logging.info("Stopping...")
         stream.stop_stream()
         stream.close()
-        write_wav_file(channels_i, p.get_sample_size(FORMAT), sample_rate, frames, wav_output_file)
+        write_wav_file(frames, wav_output_file, channels_i, p.get_sample_size(FORMAT), sample_rate)
         p.terminate()
 
 if __name__ == '__main__':
@@ -264,4 +269,4 @@ if __name__ == '__main__':
         for i in range(p.get_device_count()):
             logging.info(p.get_device_info_by_index(i))
     #listen_westminster(p)
-    listen_for_peaks(p, 30, './logs/output.wav')
+    listen_for_peaks(p, 40, './logs/output.wav')
