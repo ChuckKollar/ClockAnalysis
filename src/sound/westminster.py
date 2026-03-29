@@ -202,6 +202,7 @@ def write_wav_file(frames, wav_output_file, channels, sample_width, frame_rate):
         wf.setnchannels(channels)
         wf.setsampwidth(sample_width)
         wf.setframerate(frame_rate)
+        # Concatinate the frames together as byte objects
         frames_b = b''.join(frames)
         audio_data = np.frombuffer(frames_b, dtype=np.int16)
         max_peak = np.max(np.abs(audio_data))
