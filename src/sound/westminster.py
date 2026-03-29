@@ -80,6 +80,11 @@ FIRST_TONES = [415.3, 329.63, 246.94]
 def freq_to_note(freq):
     """
     Map the given frequency (Hz) to the closest standard musical note and octave.
+    https://www.johndcook.com/blog/2016/02/10/musical-pitch-notation/
+
+    An octave is the musical interval between two notes where the higher note has double the frequency of the
+    lower note. It represents the span of eight diatonic notes (e.g., C to the next C), where both notes share
+    the same letter name but are in different registers.
     """
     if freq <= 0:
         # Invalid frequency or silence
@@ -336,4 +341,5 @@ if __name__ == '__main__':
             logging.info(p.get_device_info_by_index(i))
     # listen_westminster(p)
     # listen_for_peaks(p, 40, './logs/output.wav')
+    # https://medium.com/@ianvonseggern/note-recognition-in-python-c2020d0dae24
     listen_for_peaks_in_file(p,'./ChristChurch.wav')
