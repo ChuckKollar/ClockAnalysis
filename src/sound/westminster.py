@@ -219,7 +219,10 @@ def listen_for_peaks(p, record_seconds, wav_output_file):
         logging.info("Stopping...")
         stream.stop_stream()
         stream.close()
-        with wave.open(wav_output_file, 'wb') as wf:
+        now = datetime.now()
+        file_timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+        wav_output_file_ts = f"{wav_output_file.rstrip('.wav')}_{file_timestamp}.wav"
+        with wave.open(wav_output_file_ts, 'wb') as wf:
             wf.setnchannels(channels_i)
             wf.setsampwidth(p.get_sample_size(FORMAT))
             wf.setframerate(sample_rate)
@@ -249,4 +252,4 @@ if __name__ == '__main__':
     for i in range(p.get_device_count()):
         print(p.get_device_info_by_index(i))
     #listen_westminster(p)
-    listen_for_peaks(p, 20, './logs/output.wav')
+    listen_for_peaks(p, 30, './logs/output.wav')
