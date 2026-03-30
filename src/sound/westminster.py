@@ -6,7 +6,6 @@ import numpy as np
 from scipy.fftpack import fft
 from datetime import datetime
 from scipy.signal import find_peaks
-import math
 import logging
 import argparse
 from sound_utils import freq_to_note, write_wav_file
@@ -43,11 +42,10 @@ def auto_scale(data_chunk):
 
     return audio_data.tobytes()
 
-
+# xcode-select --install
 # brew install portaudio
 # pip install --upgrade pip
-# xcode-select --install
-# pip install PyAudio numpy scipy noisereduce librosa
+# pip install PyAudio numpy scipy noisereduce
 
 # Configuration
 FORMAT = pyaudio.paInt16
@@ -236,9 +234,9 @@ def listen_for_peaks_in_file(p, wav_input_file):
 
             # np.append(frames_np, data_np)
             # Calculate FFT and identify dominant frequency
-            fft_data = np.abs(np.fft.rfft(data_np))
+            # fft_data = np.abs(np.fft.rfft(data_np))
             # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
-            peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
+            # peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
             # logging.debug(f"Time: {current_time_seconds:.4f} sec; Peak: {peak_freq:.2f} Hz; Note: {freq_to_note(peak_freq)}")
 
             samples = len(data_np)  # Number of samples in the segment
@@ -250,15 +248,30 @@ def listen_for_peaks_in_file(p, wav_input_file):
             # 4. Find frequency peaks
             # Use scipy.signal.find_peaks to identify prominent frequencies
             # You might need to adjust the height and distance parameters based on your audio
-            peak_indices, properties = find_peaks(freq_magnitude, height=0.01 * np.max(freq_magnitude), distance=10)
+            peak_indices, _ = find_peaks(freq_magnitude, height=0.01 * np.max(freq_magnitude), distance=10)
             detected_frequencies = xf[peak_indices]
             detected_magnitudes = freq_magnitude[peak_indices]
+            # Choose a reference amplitude (e.g., the max value in the spectrum or 1.0 for float data)
+            reference_amplitude = np.max(detected_magnitudes)  # This makes the peak 0 dB
+            # Convert to dB
+            # Use a small value (like 1e-10) to avoid log10(0) which results in -inf
+            epsilon = 1e-10
+            detected_magnitudes_db = 20 * np.log10(detected_magnitudes / reference_amplitude + epsilon)
             # Sort by magnitude for easier reading
-            sorted_peaks = sorted(zip(detected_frequencies, detected_magnitudes), key=lambda x: x[1], reverse=True)
+            sorted_peaks = sorted(zip(detected_frequencies, detected_magnitudes_db), key=lambda x: x[1], reverse=True)
             str = ""
-            for freq, mag in sorted_peaks[:4]:
-                str += f"{freq:.1f}Hz {freq_to_note(freq)} {math.log2(mag):.1f}dB "
-            logging.debug(f"Time: {current_time_seconds:.4f} sec; {str}")
+            first_str = True
+            for freq, mag in sorted_peaks[:6]:
+                if freq > 55.0:
+                    # Only keep frequencies above a threshold
+                    if not first_str:
+                        str +=", "
+                    str += f"{freq:.1f}Hz {freq_to_note(freq)}"
+                    if mag < 0.0:
+                        # 0 dB assumed
+                        str += f" {mag:.1f}dB"
+                    first_str = False
+            logging.debug(f"Time: {current_time_seconds:.4f}s; {str}")
 
     except KeyboardInterrupt:
         print("Stopping...")
