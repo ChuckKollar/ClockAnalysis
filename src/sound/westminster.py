@@ -262,7 +262,7 @@ def listen_for_peaks_in_file(p, wav_input_file):
             str = ""
             first_str = True
             for freq, mag in sorted_peaks[:6]:
-                if freq > 55.0:
+                if freq > 55.0 and mag > -15.0:
                     # Only keep frequencies above a threshold
                     if not first_str:
                         str +=", "
@@ -297,4 +297,8 @@ if __name__ == '__main__':
     # listen_westminster(p)
     # listen_for_peaks(p, 40, './logs/output.wav')
     # https://medium.com/@ianvonseggern/note-recognition-in-python-c2020d0dae24
-    listen_for_peaks_in_file(p,'./ChristChurch.wav')
+
+    # listen_for_peaks_in_file(p,'./chime_audio/ChristChurch.wav')
+
+    # https://sound-effects.bbcrewind.co.uk/search?q=Big%20Ben
+    listen_for_peaks_in_file(p,'./chime_audio/bbc_big_ben_07002151.wav')
