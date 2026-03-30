@@ -253,7 +253,8 @@ def listen_for_peaks_in_file(p, wav_input_file):
             detected_magnitudes = freq_magnitude[peak_indices]
             # Choose a reference amplitude (e.g., the max value in the spectrum or 1.0 for float data)
             reference_amplitude = np.max(detected_magnitudes)  # This makes the peak 0 dB
-            # Convert to dB
+            # Convert Amplitude to dB
+            # https://stackoverflow.com/questions/53761077/from-amplitude-or-fft-to-db
             # Use a small value (like 1e-10) to avoid log10(0) which results in -inf
             epsilon = 1e-10
             detected_magnitudes_db = 20 * np.log10(detected_magnitudes / reference_amplitude + epsilon)
