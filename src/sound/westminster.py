@@ -8,7 +8,7 @@ from datetime import datetime
 from scipy.signal import find_peaks
 import logging
 import argparse
-from sound_utils import freq_to_note, write_wav_file
+from sound_utils import freq_to_note_str, write_wav_file, apply_highpass_filter
 
 # Configure the root logger
 logging.basicConfig(
@@ -214,36 +214,37 @@ def listen_for_peaks(p, record_seconds, wav_output_file):
 def listen_for_peaks_in_file(p, wav_input_file):
     # The number of frames (samples) read in each iteration of the loop.
     chunk: int = 2048
-    # The sampling rate (samples per second, e.g., 44100 Hz).
-    # sample_rate = 48000
+    cutoff_hz = 100.0
     wf = None
     try:
         wf = wave.open(wav_input_file, 'rb')
-        frame_rate = wf.getframerate()
+        sample_rate_hz = wf.getframerate()
         n_channels = wf.getnchannels()
         samp_width = wf.getsampwidth()  # bytes per sample
-        logging.info(f"Processing file: {wav_input_file} frame_rate: {frame_rate}; n_channels: {n_channels}; samp_width: {samp_width}")
+        logging.info(f"Processing file: {wav_input_file} sample_rate_hz: {sample_rate_hz}; n_channels: {n_channels}; samp_width: {samp_width}")
         frames_read_total = 0
         while True:
             data = wf.readframes(chunk)
             if not data:
                 break
             # Calculate the time for the beginning of the current chunk
-            current_time_seconds = frames_read_total / float(frame_rate)
+            current_time_seconds = frames_read_total / float(sample_rate_hz)
+
             data_np = np.frombuffer(data, dtype=np.int16)
+            data_np = apply_highpass_filter(data_np, cutoff_hz, sample_rate_hz, order=5)
             frames_read_total += len(data) // (n_channels * samp_width)  # number of frames in the chunk
 
             # np.append(frames_np, data_np)
             # Calculate FFT and identify dominant frequency
             # fft_data = np.abs(np.fft.rfft(data_np))
             # https://numpy.org/doc/2.1/reference/generated/numpy.fft.rfftfreq.html
-            # peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate)[np.argmax(fft_data)]
-            # logging.debug(f"Time: {current_time_seconds:.4f} sec; Peak: {peak_freq:.2f} Hz; Note: {freq_to_note(peak_freq)}")
+            # peak_freq = np.fft.rfftfreq(len(data_np), 1.0 / sample_rate_hz)[np.argmax(fft_data)]
+            # logging.debug(f"Time: {current_time_seconds:.4f} sec; Peak: {peak_freq:.2f} Hz; Note: {freq_to_note_str(peak_freq)}")
 
             samples = len(data_np)  # Number of samples in the segment
             # 3. Perform Fast Fourier Transform (FFT)
             yf = np.fft.rfft(data_np)  # FFT for real-valued signals
-            xf = np.fft.rfftfreq(samples, 1 / frame_rate)  # Frequency bins
+            xf = np.fft.rfftfreq(samples, 1 / sample_rate_hz)  # Frequency bins
             # Get magnitude and normalize
             freq_magnitude = np.abs(yf)
             # 4. Find frequency peaks
@@ -263,13 +264,13 @@ def listen_for_peaks_in_file(p, wav_input_file):
             sorted_peaks = sorted(zip(detected_frequencies, detected_magnitudes_db), key=lambda x: x[1], reverse=True)
             str = ""
             first_str = True
-            for freq, mag in sorted_peaks[:6]:
+            for freq, mag in sorted_peaks[:10]:
                 # Big Ben (Hour Bell): Low E (approx. 55 Hz).
-                if freq > 30.0 and mag > -15.0:
+                if mag > -20.0:
                     # Only keep frequencies above a threshold
                     if not first_str:
                         str +=", "
-                    str += f"{freq:.1f}Hz {freq_to_note(freq)}"
+                    str += f"{freq:.1f}Hz {freq_to_note_str(freq)}"
                     if mag < 0.0:
                         # 0 dB assumed
                         str += f" {mag:.1f}dB"

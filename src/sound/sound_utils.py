@@ -2,10 +2,26 @@ import math
 import wave
 import noisereduce as nr
 import numpy as np
+from scipy.signal import butter, filtfilt
 from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
+def _butter_highpass(cutoff, fs, order=5):
+    """Designs a Butterworth high-pass filter."""
+    nyq = 0.5 * fs # Nyquist Frequency
+    normal_cutoff = cutoff / nyq
+    # Get the filter coefficients
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    return b, a
+
+def apply_highpass_filter(data, cutoff, fs, order=5):
+    """Applies the high-pass filter to audio data (np array)."""
+    b, a = _butter_highpass(cutoff, fs, order=order)
+    # Apply the filter forward and backward for zero-phase distortion
+    y = filtfilt(b, a, data)
+    return y
 
 def freq_to_note(freq):
     """
@@ -35,7 +51,11 @@ def freq_to_note(freq):
     # note_index = (h + 69) % 12
     # octave = (h + 69) // 12 - 1
 
-    return notes[note_index] + str(octave)
+    return notes[note_index] , octave
+
+def freq_to_note_str(freq):
+    note, octave = freq_to_note(freq)
+    return f"{note}{octave}"
 
 def write_wav_file(frames, wav_output_file, channels, sample_width, frame_rate):
     """
