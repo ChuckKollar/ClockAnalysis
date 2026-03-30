@@ -215,13 +215,14 @@ def listen_for_peaks_in_file(p, wav_input_file):
     # The number of frames (samples) read in each iteration of the loop.
     chunk: int = 2048
     # The sampling rate (samples per second, e.g., 44100 Hz).
-    sample_rate = 48000
+    # sample_rate = 48000
     wf = None
     try:
         wf = wave.open(wav_input_file, 'rb')
         frame_rate = wf.getframerate()
         n_channels = wf.getnchannels()
         samp_width = wf.getsampwidth()  # bytes per sample
+        logging.info(f"Processing file: {wav_input_file} frame_rate: {frame_rate}; n_channels: {n_channels}; samp_width: {samp_width}")
         frames_read_total = 0
         while True:
             data = wf.readframes(chunk)
@@ -263,7 +264,8 @@ def listen_for_peaks_in_file(p, wav_input_file):
             str = ""
             first_str = True
             for freq, mag in sorted_peaks[:6]:
-                if freq > 55.0 and mag > -15.0:
+                # Big Ben (Hour Bell): Low E (approx. 55 Hz).
+                if freq > 30.0 and mag > -15.0:
                     # Only keep frequencies above a threshold
                     if not first_str:
                         str +=", "
@@ -272,7 +274,7 @@ def listen_for_peaks_in_file(p, wav_input_file):
                         # 0 dB assumed
                         str += f" {mag:.1f}dB"
                     first_str = False
-            logging.debug(f"Time: {current_time_seconds:.4f}s; {str}")
+            logging.info(f"Time: {current_time_seconds:.4f}s; {str}")
 
     except KeyboardInterrupt:
         print("Stopping...")
@@ -299,7 +301,7 @@ if __name__ == '__main__':
     # listen_for_peaks(p, 40, './logs/output.wav')
     # https://medium.com/@ianvonseggern/note-recognition-in-python-c2020d0dae24
 
-    # listen_for_peaks_in_file(p,'./chime_audio/ChristChurch.wav')
+    listen_for_peaks_in_file(p,'./chime_audio/ChristChurchCathedralDublin_20251204.wav')
 
     # https://sound-effects.bbcrewind.co.uk/search?q=Big%20Ben
     listen_for_peaks_in_file(p,'./chime_audio/bbc_big_ben_07002151.wav')

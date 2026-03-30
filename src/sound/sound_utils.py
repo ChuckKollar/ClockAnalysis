@@ -28,12 +28,12 @@ def freq_to_note(freq):
     h = round(12 * math.log2(freq / 440.0))
 
     # Calculate note index (0-11) and octave
-    # note_index = (h + 9) % 12  # +9 to align with C as index 0
-    # octave = (h + 49) // 12 + 1  # Approximate octave calculation
+    note_index = (h + 9) % 12  # +9 to align with C as index 0
+    octave = (h + 49) // 12 + 1  # Approximate octave calculation
     # Calculate note name and octave
     # 69 is A4 (440Hz) in MIDI notation
-    note_index = (h + 69) % 12
-    octave = (h + 69) // 12 - 1
+    # note_index = (h + 69) % 12
+    # octave = (h + 69) // 12 - 1
 
     return notes[note_index] + str(octave)
 
