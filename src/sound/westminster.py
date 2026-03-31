@@ -6,9 +6,10 @@ import numpy as np
 from scipy.fftpack import fft
 from datetime import datetime
 from scipy.signal import find_peaks
+import noisereduce as nr
 import logging
 import argparse
-from sound_utils import freq_to_note_str, write_wav_file, apply_highpass_filter
+from sound_utils import freq_to_note, write_wav_file, apply_highpass_filter
 
 # Configure the root logger
 logging.basicConfig(
@@ -224,13 +225,13 @@ def listen_for_peaks_in_file(p, wav_input_file):
         logging.info(f"Processing file: {wav_input_file} sample_rate_hz: {sample_rate_hz}; n_channels: {n_channels}; samp_width: {samp_width}")
         frames_read_total = 0
         while True:
+            current_time_seconds = frames_read_total / float(sample_rate_hz)
             data = wf.readframes(chunk)
             if not data:
                 break
-            # Calculate the time for the beginning of the current chunk
-            current_time_seconds = frames_read_total / float(sample_rate_hz)
-
             data_np = np.frombuffer(data, dtype=np.int16)
+
+            data_np = nr.reduce_noise(y=data_np, sr=sample_rate_hz, prop_decrease=0.75)
             data_np = apply_highpass_filter(data_np, cutoff_hz, sample_rate_hz, order=5)
             frames_read_total += len(data) // (n_channels * samp_width)  # number of frames in the chunk
 
@@ -265,12 +266,13 @@ def listen_for_peaks_in_file(p, wav_input_file):
             str = ""
             first_str = True
             for freq, mag in sorted_peaks[:10]:
-                # Big Ben (Hour Bell): Low E (approx. 55 Hz).
-                if mag > -20.0:
+                # Big Ben (Hour Bell): Low E (approx. 55 Hz). 30dB is 99.9% sound pressure level (SPL) reduction
+                if mag > -30.0:
                     # Only keep frequencies above a threshold
                     if not first_str:
                         str +=", "
-                    str += f"{freq:.1f}Hz {freq_to_note_str(freq)}"
+                    note, octave = freq_to_note(freq)
+                    str += f"{freq:.1f}Hz {note}{octave}"
                     if mag < 0.0:
                         # 0 dB assumed
                         str += f" {mag:.1f}dB"
