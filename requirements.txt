@@ -1,0 +1,9 @@
+PyAudio
+numpy
+scipy
+noisereduce
+rplidar-roboticia
+pyqt5
+requests
+sounddevice
+matplotlib

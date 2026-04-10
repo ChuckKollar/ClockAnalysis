@@ -9,11 +9,27 @@ from scipy.signal import find_peaks
 import noisereduce as nr
 import logging
 import argparse
-from sound_utils import freq_to_note, write_wav_file, apply_highpass_filter
+import librosa
+import librosa.display
+import sounddevice as sd
+from sound_utils import freq_to_note, write_wav_file, apply_highpass_filter, OCTAVE_NOTES
+import matplotlib.pyplot as plt
+
+# xcode-select --install
+# brew install portaudio
+# pip install --upgrade pip
+# python3.11 -m pip install --upgrade pip
+# brew install llvm
+# export LLVM_CONFIG=$(brew --prefix llvm)/bin/llvm-config
+# pip install PyAudio numpy scipy noisereduce librosa
+
+# brew install miniforge
+# exec $SHELL -l
+# conda install -c conda-forge librosa
 
 # Configure the root logger
 logging.basicConfig(
-    level=logging.DEBUG, # Set the minimum log level to capture
+    level=logging.INFO, # Set the minimum log level to capture
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', # Customize the log message format
     filename='./logs/westminster.log', # Log to a file (optional, defaults to console)
     filemode='a' # Append to the log file (default is 'a', 'w' overwrites)
@@ -43,11 +59,6 @@ def auto_scale(data_chunk):
 
     return audio_data.tobytes()
 
-# xcode-select --install
-# brew install portaudio
-# pip install --upgrade pip
-# pip install PyAudio numpy scipy noisereduce
-
 # Configuration
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -61,18 +72,23 @@ E3 = 164.814
 # Westminster Quarters https://en.wikipedia.org/wiki/Westminster_Quarters
 # G♯4, F♯4, E4, B3
 Q1 = [415.3, 369.99, 329.63, 246.94]
+Q1n = ["G♯4", "F♯4", "E4", "B3"]
 # E4, G♯4, F♯4, B3
 Q2 = [329.63, 415.3, 369.99, 246.94]
+Q2n = ["E4", "G♯4", "F♯4", "B3"]
 # E4, F♯4, G♯4, E4
 Q3 = [329.63, 369.99, 415.3, 329.63]
+Q3n = ["E4", "F♯4", "G♯4", "E4"]
 # G♯4, E4, F♯4, B3
 Q4 = [415.3, 329.63, 369.99, 246.94]
+Q4n = ["E4", "F♯4", "G♯4", "E4"]
 # B3, F♯4, G♯4, E4
 Q5 = [246.94, 369.99, 415.3, 329.63]
-CHANGE_Q1 = Q1
-CHANGE_Q2 = Q2 + Q3
-CHANGE_Q3 = Q4 + Q5 + Q1
-CHANGE_Q4 = Q2 + Q3 + Q4 + Q5 # + hour (E3)
+Q5n = ["E4", "F♯4", "G♯4", "E4"]
+CHANGE_Q1 = Q1n
+CHANGE_Q2 = Q2n + Q3n
+CHANGE_Q3 = Q4n + Q5n + Q1n
+CHANGE_Q4 = Q2n + Q3n + Q4n + Q5n # + hour (E3)
 
 # The first tones on all Quarters...
 FIRST_TONES = [415.3, 329.63, 246.94]
@@ -290,6 +306,242 @@ def listen_for_peaks_in_file(p, wav_input_file):
         wf.close()
         p.terminate()
 
+def identify_note_pattern(file_path):
+    # 1. Load the audio file (mono=True converts stereo to mono)
+    y, sr = librosa.load(file_path, sr=None)
+
+    # 2. Extract Chroma Features (Energy for each of the 12 musical notes)
+    chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+
+    # 3. Find the dominant note index for each time frame
+    # Index 0=C, 1=C#, 2=D, 3=D#, 4=E, 5=F, 6=F#, 7=G, 8=G#, 9=A, 10=A#, 11=B
+    note_indices = np.argmax(chroma, axis=0)
+
+    # 4. Map indices to note names
+    raw_notes = [OCTAVE_NOTES[i] for i in note_indices]
+
+    # 5. Filter the list to get the sequence pattern (removing identical consecutive frames)
+    pattern = []
+    if raw_notes:
+        pattern.append(raw_notes[0])
+        for i in range(1, len(raw_notes)):
+            if raw_notes[i] != raw_notes[i-1]:
+                pattern.append(raw_notes[i])
+
+    logging.info(f"Note Pattern: {pattern}")
+    return pattern
+
+def identify_notes(file_path):
+    # 1. Load the WAV file
+    y, sr = librosa.load(file_path, sr=None)
+
+    # 2. Extract Harmonic Component (Ignore percussion/harmonics)
+    y_harmonic = librosa.effects.harmonic(y)
+
+    # 3. Compute Chromagram (Note Pattern)
+    # Chroma represents the 12 semitones of the musical octave
+    chroma = librosa.feature.chroma_cqt(y=y_harmonic, sr=sr)
+
+    # 4. Identify dominant note over time
+    # Sum over time or find maximum in each frame
+    note_pattern = np.argmax(chroma, axis=0)
+
+    # Convert note numbers to note names
+    raw_notes = [OCTAVE_NOTES[note] for note in note_pattern]
+
+    # 5. Filter the list to get the sequence pattern (removing identical consecutive frames)
+    pattern = []
+    if raw_notes:
+        pattern.append(raw_notes[0])
+        for i in range(1, len(raw_notes)):
+            if raw_notes[i] != raw_notes[i-1]:
+                pattern.append(raw_notes[i])
+
+    logging.info(f"File: {file_path}; Detected Notes: {pattern}")
+    return pattern
+
+def identify_westminster_chimes_shifting_pitch(wav_path):
+    logging.info(f"Wave File: {wav_path}")
+    logging.info(f"CHANGE_Q4: {CHANGE_Q4}")
+    # 1. Load the audio as a waveform `y`
+    #    Store the sampling rate as `sr`
+    y, sr = librosa.load(wav_path, sr=None)
+
+    # 2. Shift the pitch by 2 semitones
+    # n_steps can be fractional (e.g., 2.5) for fine-tuning
+    notes = identify_westminster_chimes(y, sr)
+    # playback_notes(notes)
+
+def identify_westminster_chimes(y, sr):
+    # The "ring" is a complex combination of frequencies that decay over time.
+    # The "strike note" (often an octave above the nominal pitch) is critical for identification
+
+    # 2. Extract Harmonic and Percussive components
+    # This helps ignore harmonic overtones and focus on the note's fundamental pitch
+    # Get a more isolated percussive component by widening its margin
+    # Returns two time series, containing the harmonic (tonal) and percussive (transient) portions of the signal.
+    # The motivation for this kind of operation is two-fold: first, percussive elements tend to be stronger indicators
+    # of rhythmic content, and can help provide more stable beat tracking results; second, percussive elements can
+    # pollute tonal feature representations (such as chroma) by contributing energy across all frequency bands,
+    # so we’d be better off without them.
+    # Bells have a sharp strike (percussive) and a long tone (harmonic).
+    y_harmonic, y_percussive = librosa.effects.hpss(y, margin=(1.0,5.0))
+    #
+    # # Beat track on the percussive signal
+    # tempo, beat_frames = librosa.beat.beat_track(y=y_percussive, sr=sr, units='time')
+    # logging.info(f"Beat Frames: {beat_frames}")
+
+    # 3. Onset detection: Find when new notes start
+    # Locate note onset events by picking peaks in an onset strength envelope.
+    # Set the units to encode detected onset events in to time.
+    onsets = librosa.onset.onset_detect(y=y_harmonic, sr=sr, units='time')
+    # logging.info(f"Onsets: {onsets}")
+
+    # Add start and end points for segmentation
+    segment_times = np.concatenate(([0], onsets, [librosa.get_duration(y=y, sr=sr)]))
+
+    detected_notes = []
+
+    # 4. Analyze pitch for each segment
+    for i in range(len(segment_times) - 1):
+        start = segment_times[i]
+        end = segment_times[i + 1]
+
+        # Only analyze segments long enough to be notes
+        if end - start < 0.2: continue
+
+        # Extract segment
+        segment = y_harmonic[int(start * sr):int(end * sr)]
+
+        # Calculate pitch using Normalized Cross-Correlation (pitch detection)
+        pitches, magnitudes = librosa.piptrack(y=segment, sr=sr)
+
+        # Find the dominant pitch (default 0.5)
+        pitch = np.mean(pitches[magnitudes > np.max(magnitudes) * 0.85])
+
+        if not np.isnan(pitch):
+            detected_notes.append([float(start), float(end-start), librosa.hz_to_note(pitch)])
+
+    # 5. Map Notes to Westminster Chime Pattern
+    # Traditional Westminster chimes: G4, C5, D5, G4 (or equivalent transposed)
+    # The pattern often starts with: G4, C5, D5, G4
+
+    # Clean up notes (approximate to nearest, ignore octaves if necessary)
+    # For this example, we look for the sequence pattern.
+
+    detected_notes_compressed = []
+    if detected_notes:
+        detected_notes_compressed.append(detected_notes[0])
+        for i in range(1, len(detected_notes)):
+            if detected_notes[i-1][2] == detected_notes[i][2]:
+                # Add the duration to the last entry and throw this one away...
+                detected_notes_compressed[-1][1] = detected_notes_compressed[-1][1] + detected_notes[i][1]
+            else:
+                # It's different so add it to the pattern...
+                detected_notes_compressed.append(detected_notes[i])
+
+    # detected_notes_loudness = get_loudest_notes(y, sr)
+
+    print_str = ", ".join(f"{i[2]} {i[0]:.3f}:{i[1]:.3f}" for i in detected_notes_compressed)
+    logging.info(f"Detected Notes: {print_str}")
+
+    # Simple pattern recognition
+    pattern = ["G4", "C5", "D5", "G4"]
+    # This logic requires refinement based on the specific transposition of your wav
+    if any(p in " ".join([i[2] for i in detected_notes_compressed]) for p in CHANGE_Q4):
+        logging.info(f"Pattern: Westminster Chimes")
+    else:
+        logging.info(f"Pattern: Not Found")
+
+    return detected_notes_compressed
+
+def playback_notes(notes):
+    sr = 22050
+    interval = 0.5
+    # Synthesize and play notes
+    for note in notes:
+        # 1. Convert note name to frequency
+        freq = librosa.note_to_hz(note[2])
+
+        # 2. Generate tone
+        note_wave = librosa.tone(freq, sr=sr, duration=note[1])
+
+        # 3. Add silent padding to create the interval
+        silence = np.zeros(int(sr * interval))
+        audio_with_pause = np.concatenate([note_wave, silence])
+
+        # 4. Play note
+        print(f"Playing {note}...")
+        sd.play(note_wave, sr)
+        sd.wait()  # Wait for note to finish
+
+def get_loudest_notes(y, sr, top_n=12):
+    # 2. Compute Constant-Q Transform (CQT)
+    # CQT is ideal for music because bins correspond to musical notes
+    cqt = np.abs(librosa.cqt(y, sr=sr))
+
+    # 3. Average the magnitude over the entire duration (time axis)
+    # This gives us the 'strength' of each note across the whole track
+    mean_cqt = np.mean(cqt, axis=1)
+
+    # 4. Find indices of the highest magnitudes
+    top_indices = np.argsort(mean_cqt)[-top_n:][::-1]
+
+    # 5. Convert bin indices to note names (e.g., 'C4', 'A#3')
+    # librosa.cqt_frequencies gives the center frequency of each bin
+    freqs = librosa.cqt_frequencies(n_bins=len(mean_cqt), fmin=librosa.note_to_hz('C5'))
+
+    loudest_notes = []
+    for idx in top_indices:
+        note_name = librosa.hz_to_note(freqs[idx])
+        magnitude = mean_cqt[idx]
+        loudest_notes.append((note_name, magnitude))
+
+    loudest_notes_str = ", ".join(f"{ln[0]} {float(ln[1]):.3f}" for ln in loudest_notes)
+    logging.info(f"Loudest Notes: {loudest_notes_str}")
+    return loudest_notes
+
+def plot_westminster_chimes(filename):
+    y, sr = librosa.load(filename)
+
+    # 2. Harmonic-Percussive Source Separation (HPSS)
+    # Bells have a sharp strike (percussive) and a long tone (harmonic).
+    # Separating them helps focus on the fundamental frequency.
+    y_harmonic, y_percussive = librosa.effects.hpss(y)
+
+    # 3. Melody/Pitch Extraction using pYIN
+    # pYIN is effective for tracking musical notes (F0).
+    f0, voiced_flag, voiced_probs = librosa.pyin(
+        y_harmonic,
+        fmin = librosa.note_to_hz('C4'),  # Low bell range
+        fmax = librosa.note_to_hz('C6'),  # High bell range
+        sr=sr
+    )
+
+    # 4. Convert Pitch (Hz) to Notes
+    # The Westminster Chime often uses B3, E4, D4, C4, G4, etc.
+    times = librosa.times_like(f0)
+    clean_f0 = np.nan_to_num(f0, nan=0.1)
+    notes = librosa.hz_to_note(clean_f0)
+
+    # Filter out unvoiced frames (no note detected)
+    non_nan_indices = ~np.isnan(f0)
+    detected_times = times[non_nan_indices]
+    detected_notes = notes[non_nan_indices]
+
+    print("Detected notes sequence:")
+    # Print the first few notes for brevity
+    print(detected_notes[:20])
+
+    # 5. Optional: Visualize the pitch tracking
+    plt.figure(figsize=(10, 4))
+    plt.plot(times, f0, label='Fundamental Frequency (F0)')
+    plt.title('Westminster Chime Melody Analysis')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Pitch (Hz)')
+    plt.legend()
+    plt.show()
+
 if __name__ == '__main__':
     logging.info("Starting...")
     p = pyaudio.PyAudio()
@@ -304,7 +556,18 @@ if __name__ == '__main__':
     # listen_for_peaks(p, 40, './logs/output.wav')
     # https://medium.com/@ianvonseggern/note-recognition-in-python-c2020d0dae24
 
-    listen_for_peaks_in_file(p,'./chime_audio/ChristChurchCathedralDublin_20251204.wav')
+    # listen_for_peaks_in_file(p,'./chime_audio/ChristChurchCathedralDublin_20251204.wav')
 
     # https://sound-effects.bbcrewind.co.uk/search?q=Big%20Ben
-    listen_for_peaks_in_file(p,'./chime_audio/bbc_big_ben_07002151.wav')
+    # listen_for_peaks_in_file(p,'./chime_audio/bbc_big_ben_07002151.wav')
+
+    # identify_note_pattern('./chime_audio/bbc_big_ben_07002151.wav')
+
+    # identify_notes('./chime_audio/bbc_big_ben_07002151.wav')
+    # identify_notes('./chime_audio/ChristChurchCathedralDublin_20251204.wav')
+
+    identify_westminster_chimes_shifting_pitch('./chime_audio/bbc_big_ben_07002151.wav')
+    identify_westminster_chimes_shifting_pitch('./chime_audio/ChristChurchCathedralDublin_20251204.wav')
+
+    # plot_westminster_chimes('./chime_audio/bbc_big_ben_07002151.wav')
+    # plot_westminster_chimes('./chime_audio/ChristChurchCathedralDublin_20251204.wav')

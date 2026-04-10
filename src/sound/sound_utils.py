@@ -23,6 +23,10 @@ def apply_highpass_filter(data, cutoff, fs, order=5):
     y = filtfilt(b, a, data)
     return y
 
+# Define notes in an octave
+# These 12 notes are C, C#/D♭, D, D#/E♭, E, F, F#/G♭, G, G#/A♭, A, A#/B♭, and B.
+OCTAVE_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
 def freq_to_note(freq):
     """
     Map the given frequency (Hz) to the closest standard musical note and octave.
@@ -36,9 +40,6 @@ def freq_to_note(freq):
         # Invalid frequency or silence
         return ""
 
-    # Define notes in an octave
-    notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-
     # Calculate half steps from A4 (440 Hz; standard tuning)
     # A4 is 49th key on a standard 88-key piano
     h = round(12 * math.log2(freq / 440.0))
@@ -51,7 +52,7 @@ def freq_to_note(freq):
     # note_index = (h + 69) % 12
     # octave = (h + 69) // 12 - 1
 
-    return notes[note_index] , octave
+    return OCTAVE_NOTES[note_index] , octave
 
 def freq_to_note_str(freq):
     note, octave = freq_to_note(freq)
